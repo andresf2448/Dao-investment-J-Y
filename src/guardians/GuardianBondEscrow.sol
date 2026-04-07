@@ -4,8 +4,7 @@ pragma solidity ^0.8.33;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-
-import {IGuardianBondEscrow} from "../interfaces/IGuardianBondEscrow.sol";
+import {IGuardianBondEscrow} from "../interfaces/guardians/IGuardianBondEscrow.sol";
 
 contract GuardianBondEscrow is IGuardianBondEscrow, AccessControl {
   using SafeERC20 for IERC20;

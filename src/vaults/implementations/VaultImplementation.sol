@@ -9,9 +9,9 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {AccessControlUpgradeable} from "@openzeppelin-upgradeable/access/AccessControlUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin-upgradeable/utils/PausableUpgradeable.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
-import {IProtocolCore} from "../interfaces/IProtocolCore.sol";
-import {IStrategyRouter} from "../interfaces/IStrategyRouter.sol";
-import {IVaultStrategyExecutor} from "../interfaces/IVaultStrategyExecutor.sol";
+import {IProtocolCore} from "../../interfaces/core/IProtocolCore.sol";
+import {IStrategyRouter} from "../../interfaces/execution/IStrategyRouter.sol";
+import {IVaultStrategyExecutor} from "../../interfaces/vaults/IVaultStrategyExecutor.sol";
 
 contract VaultImplementation is
   Initializable,

@@ -5,7 +5,7 @@ import {Initializable} from "@openzeppelin-upgradeable/proxy/utils/Initializable
 import {UUPSUpgradeable} from "@openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin-upgradeable/access/AccessControlUpgradeable.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
-import {IRiskManager} from "../interfaces/IRiskManager.sol";
+import {IRiskManager} from "../interfaces/execution/IRiskManager.sol";
 
 contract RiskManager is
   Initializable,
@@ -215,6 +215,8 @@ contract RiskManager is
       revert RiskManager__StalePrice();
 
     uint8 decimals = AggregatorV3Interface(config.feed).decimals();
+    // casting to 'uint256' is safe because Chainlink price feeds will never return a negative price, and we already checked that 'answer' is greater than 0
+    // forge-lint: disable-next-line(unsafe-typecast)
     uint256 unsignedAnswer = uint256(answer);
 
     if(decimals == 18) {

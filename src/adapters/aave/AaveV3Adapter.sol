@@ -2,9 +2,9 @@
 pragma solidity ^0.8.33;
 
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
-import {IStrategyAdapter} from "../interfaces/IStrategyAdapter.sol";
-import {IVaultStrategyExecutor} from "../interfaces/IVaultStrategyExecutor.sol";
-import {IAaveV3Pool} from "./aave/interfaces/IAaveV3Pool.sol";
+import {IStrategyAdapter} from "../../interfaces/adapters/IStrategyAdapter.sol";
+import {IVaultStrategyExecutor} from "../../interfaces/vaults/IVaultStrategyExecutor.sol";
+import {IAaveV3Pool} from "./interfaces/IAaveV3Pool.sol";
 
 contract AaveV3Adapter is IStrategyAdapter {
   enum Action {

@@ -3,10 +3,10 @@ pragma solidity ^0.8.33;
 
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {IGuardianRegistry} from "../interfaces/IGuardianRegistry.sol";
-import {IVaultRegistry} from "../interfaces/IVaultRegistry.sol";
-import {IVault} from "../interfaces/IVault.sol";
-import {IProtocolCore} from "../interfaces/IProtocolCore.sol";
+import {IGuardianRegistry} from "../../interfaces/guardians/IGuardianRegistry.sol";
+import {IVaultRegistry} from "../../interfaces/vaults/IVaultRegistry.sol";
+import {IVault} from "../../interfaces/vaults/IVault.sol";
+import {IProtocolCore} from "../../interfaces/core/IProtocolCore.sol";
 
 contract VaultFactory is AccessControl {
   address public immutable implementation;
@@ -73,9 +73,18 @@ contract VaultFactory is AccessControl {
   function makeSalt(address guardian, address asset)
     public
     pure
-    returns(bytes32)
+    returns(bytes32 result)
   {
-    return keccak256(abi.encode(guardian, asset));
+    // option1 less gas efficient, option2 more gas efficient but requires inline assembly. Both return the same result.
+    // return keccak256(abi.encode(guardian, asset));
+
+    // option2 inline assembly
+    assembly {
+      let ptr := mload(0x40)
+      mstore(ptr, guardian)
+      mstore(add(ptr, 32), asset)
+      result := keccak256(ptr, 64)
+    }
   }
 
   function predictVaultAddress(address guardian, address asset)

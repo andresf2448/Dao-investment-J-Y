@@ -4,9 +4,9 @@ pragma solidity ^0.8.33;
 import {Initializable} from "@openzeppelin-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin-upgradeable/access/AccessControlUpgradeable.sol";
-import {IStrategyAdapter} from "../interfaces/IStrategyAdapter.sol";
-import {IRiskManager} from "../interfaces/IRiskManager.sol";
-import {IStrategyRouter} from "../interfaces/IStrategyRouter.sol";
+import {IStrategyAdapter} from "../interfaces/adapters/IStrategyAdapter.sol";
+import {IRiskManager} from "../interfaces/execution/IRiskManager.sol";
+import {IStrategyRouter} from "../interfaces/execution/IStrategyRouter.sol";
 
 contract StrategyRouter is
   Initializable,
