@@ -5,10 +5,13 @@ import {Initializable} from "@openzeppelin-upgradeable/proxy/utils/Initializable
 import {ERC20Upgradeable} from "@openzeppelin-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {ERC4626Upgradeable} from "@openzeppelin-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {AccessControlUpgradeable} from "@openzeppelin-upgradeable/access/AccessControlUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin-upgradeable/utils/PausableUpgradeable.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {IProtocolCore} from "../interfaces/IProtocolCore.sol";
+import {IStrategyRouter} from "../interfaces/IStrategyRouter.sol";
+import {IVaultStrategyExecutor} from "../interfaces/IVaultStrategyExecutor.sol";
 
 contract VaultImplementation is
   Initializable,
@@ -16,8 +19,11 @@ contract VaultImplementation is
   ERC4626Upgradeable,
   AccessControlUpgradeable,
   PausableUpgradeable,
-  ReentrancyGuardTransient
+  ReentrancyGuardTransient,
+  IVaultStrategyExecutor
 {
+  using SafeERC20 for IERC20;
+
   bytes32 public constant GUARDIAN_ROLE = keccak256("GUARDIAN_ROLE");
 
   address public guardian;
@@ -36,10 +42,33 @@ contract VaultImplementation is
 
   event RouterUpdated(address indexed olfRouter, address indexed newRouter);
   event CoreUpdated(address indexed oldCore, address indexed newCore);
+  event StrategyExecutionRequest(
+    address indexed guardian,
+    address indexed adapter,
+    bytes data
+  );
+  event RouterCallExecuted(
+    address indexed target,
+    uint256 value,
+    bytes data,
+    bytes result
+  );
+  event RouterTokenApprovalSet(
+    address indexed token,
+    address indexed spender,
+    uint256 amount
+  );
 
   error VaultImplementation__ZeroAddress();
   error VaultImplementation__NotFactory();
   error VaultImplementation__DepositsPaused();
+  error VaultImplementation__NotRouter();
+  error VaultImplementation__ExternalCallFailed();
+
+  modifier onlyRouter() {
+    if(msg.sender != router) revert VaultImplementation__NotRouter();
+    _;
+  }
 
   constructor() {
     _disableInitializers();
@@ -124,6 +153,9 @@ contract VaultImplementation is
     nonReentrant
     returns(uint256 shares)
   {
+    if(IProtocolCore(core).depositsPaused())
+      revert VaultImplementation__DepositsPaused();
+
     return super.deposit(assets, receiver);
   }
 
@@ -141,7 +173,11 @@ contract VaultImplementation is
     return super.mint(shares, receiver);
   }
 
-  function withdraw(uint256 assets, address receiver, address owner)
+  function withdraw(
+    uint256 assets,
+    address receiver,
+    address owner
+  )
     public
     override
     whenNotPaused
@@ -151,7 +187,11 @@ contract VaultImplementation is
     return super.withdraw(assets, receiver, owner);
   }
 
-  function redeem(uint256 shares, address receiver, address owner)
+  function redeem(
+    uint256 shares,
+    address receiver,
+    address owner
+  )
     public
     override
     whenNotPaused
@@ -159,6 +199,54 @@ contract VaultImplementation is
     returns(uint256 assets)
   {
     return super.redeem(shares, receiver, owner);
+  }
+
+  function executeStrategy(
+    address adapter,
+    bytes calldata data
+  ) external onlyRole(GUARDIAN_ROLE) whenNotPaused {
+    if(adapter == address(0)) revert VaultImplementation__ZeroAddress();
+
+    emit StrategyExecutionRequest(msg.sender, adapter, data);
+
+    IStrategyRouter(router).execute(
+      adapter,
+      address(this),
+      asset(),
+      data
+    );
+  }
+
+  function executeFromRouter(
+    address target,
+    uint256 value,
+    bytes calldata data
+  )
+    external
+    override
+    onlyRouter
+    returns(bytes memory result)
+  {
+    if(target == address(0))
+      revert VaultImplementation__ZeroAddress();
+
+    (bool success, bytes memory returndata) = target.call{value: value}(data);
+    if(!success) revert VaultImplementation__ExternalCallFailed();
+
+    emit RouterCallExecuted(target, value, data, returndata);
+    return returndata;
+  }
+
+  function approveTokenFromRouter(
+    address token,
+    address spender,
+    uint256 amount
+  ) external override onlyRouter {
+    if(token == address(0) || spender == address(0))
+      revert VaultImplementation__ZeroAddress();
+
+    IERC20(token).forceApprove(spender, amount);
+    emit RouterTokenApprovalSet(token, spender, amount);
   }
 
   function decimals()
