@@ -39,12 +39,15 @@ contract VaultRegistry is AccessControl {
   error VaultRegistry__VaultAlreadyInactive();
   error VaultRegistry__NotVaultGuardian();
 
-  constructor(address admin, address factory) {
-    if(admin == address(0)) revert CommonErrors.ZeroAddress();
-    if(factory == address(0)) revert CommonErrors.ZeroAddress();
+  constructor(address adminTimelock) {
+    if(adminTimelock == address(0)) revert CommonErrors.ZeroAddress();
 
-    _grantRole(DEFAULT_ADMIN_ROLE, admin);
-    _grantRole(FACTORY_ROLE, factory);
+    _grantRole(DEFAULT_ADMIN_ROLE, adminTimelock);
+  }
+
+  function setFactory(address factory) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    if(factory == address(0)) revert CommonErrors.ZeroAddress();
+    grantRole(FACTORY_ROLE, factory);
   }
 
   function registerVault(

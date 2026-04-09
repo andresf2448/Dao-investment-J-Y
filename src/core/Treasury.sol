@@ -11,7 +11,7 @@ contract Treasury is ReentrancyGuardTransient {
   using SafeERC20 for IERC20;
   using Address for address payable;
 
-  address public immutable timelock;
+  address public immutable adminTimelock;
 
   event NativeReceived(address indexed sender, uint256 amount);
 
@@ -37,13 +37,13 @@ contract Treasury is ReentrancyGuardTransient {
   error Treasury__CallFailed();
 
   modifier onlyTimelock() {
-    if(msg.sender != timelock) revert CommonErrors.Unauthorized();
+    if(msg.sender != adminTimelock) revert CommonErrors.Unauthorized();
     _;
   }
 
-  constructor(address timelock_) {
-    if(timelock_ == address(0)) revert CommonErrors.ZeroAddress();
-    timelock = timelock_;
+  constructor(address adminTimelock_) {
+    if(adminTimelock_ == address(0)) revert CommonErrors.ZeroAddress();
+    adminTimelock = adminTimelock_;
   }
 
   receive() external payable {

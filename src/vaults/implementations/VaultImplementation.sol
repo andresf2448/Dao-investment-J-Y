@@ -40,7 +40,7 @@ contract VaultImplementation is
     address router,
     address core
   );
-  event RouterUpdated(address indexed olfRouter, address indexed newRouter);
+  event RouterUpdated(address indexed oldRouter, address indexed newRouter);
   event CoreUpdated(address indexed oldCore, address indexed newCore);
   event StrategyExecutionRequest(
     address indexed guardian,

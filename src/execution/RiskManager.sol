@@ -57,17 +57,17 @@ contract RiskManager is
   }
 
   function initialize(
-    address admin_,
-    address emergencyOperator_
+    address adminTimelock,
+    address emergencyOperator
   ) external initializer {
-    if(admin_ == address(0) || emergencyOperator_ == address(0))
+    if(adminTimelock == address(0) || emergencyOperator == address(0))
       revert CommonErrors.ZeroAddress();
 
     __AccessControl_init();
 
-    _grantRole(DEFAULT_ADMIN_ROLE, admin_);
-    _grantRole(MANAGER_ROLE, admin_);
-    _grantRole(EMERGENCY_ROLE, emergencyOperator_);
+    _grantRole(DEFAULT_ADMIN_ROLE, adminTimelock);
+    _grantRole(MANAGER_ROLE, adminTimelock);
+    _grantRole(EMERGENCY_ROLE, emergencyOperator);
   }
 
   function setAssetConfig(
@@ -143,7 +143,7 @@ contract RiskManager is
     if(executionPaused) revert RiskManager__ExecutionPaused();
 
     AssetConfig memory config = _assetConfigs[asset];
-    if(!config.enabled) revert RiskManager__ExecutionPaused();
+    if(!config.enabled) revert RiskManager__AssetNotEnabled();
     if(config.feed == address(0)) revert CommonErrors.ZeroAddress();
 
     uint256 normalizedPrice = _validatedPrice(config);

@@ -7,6 +7,7 @@ import {AccessControlUpgradeable} from "@openzeppelin-upgradeable/access/AccessC
 import {IStrategyAdapter} from "../interfaces/adapters/IStrategyAdapter.sol";
 import {IRiskManager} from "../interfaces/execution/IRiskManager.sol";
 import {IStrategyRouter} from "../interfaces/execution/IStrategyRouter.sol";
+import {IVaultRegistry} from "../interfaces/vaults/IVaultRegistry.sol";
 import {CommonErrors} from "../libraries/errors/CommonErrors.sol";
 
 contract StrategyRouter is
@@ -15,8 +16,8 @@ contract StrategyRouter is
   UUPSUpgradeable,
   IStrategyRouter
 {
-  bytes32 public constant VAULT_ROLE = keccak256("VAULT_ROLE");
   bytes32 public constant ADAPTER_MANAGER_ROLE = keccak256("ADAPTER_MANAGER_ROLE");
+  IVaultRegistry public vaultRegistry;
 
   mapping(address adapter => bool allowed) public allowedAdapters;
   address public riskManager;
@@ -31,25 +32,29 @@ contract StrategyRouter is
   );
 
   error StrategyRouter__AdapterNotAllowed();
+  error StrategyRouter__VaultNotActive();
 
   constructor() {
     _disableInitializers();
   }
 
-  function initilize(
-    address admin_,
-    address riskManager_
+  function initialize(
+    address adminTimelock,
+    address riskManager_,
+    IVaultRegistry vaultRegistry_
   ) external initializer {
-    if(admin_ == address(0) || riskManager_ == address(0)) {
+    if(adminTimelock == address(0) || riskManager_ == address(0))
       revert CommonErrors.ZeroAddress();
-    }
+    
+    if(address(vaultRegistry_) == address(0))
+      revert CommonErrors.ZeroAddress();
 
     __AccessControl_init();
 
     riskManager = riskManager_;
-
-    _grantRole(DEFAULT_ADMIN_ROLE, admin_);
-    _grantRole(ADAPTER_MANAGER_ROLE, admin_);
+    vaultRegistry = vaultRegistry_;
+    _grantRole(DEFAULT_ADMIN_ROLE, adminTimelock);
+    _grantRole(ADAPTER_MANAGER_ROLE, adminTimelock);
   }
 
   function setAdapterAllowed(
@@ -79,7 +84,13 @@ contract StrategyRouter is
     address vault,
     address asset,
     bytes calldata data
-  ) external override onlyRole(VAULT_ROLE) {
+  ) external override {
+    if(vault != msg.sender)
+      revert CommonErrors.Unauthorized();
+
+    if(!vaultRegistry.isActiveVault(vault))
+      revert StrategyRouter__VaultNotActive();
+
     if(!allowedAdapters[adapter])
       revert StrategyRouter__AdapterNotAllowed();
 

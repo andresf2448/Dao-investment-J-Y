@@ -28,11 +28,9 @@ contract GuardianAdministrator {
   }
 
   uint256 public minStake;
-  IERC20 public immutable bondingToken;
   IGovernor public immutable governor;
-  IGuardianBondEscrow public immutable bondEscrow;
+  IGuardianBondEscrow public bondEscrow;
   address public immutable timelock;
-  address public immutable treasury;
 
   mapping(address => GuardianDetail) private guardians;
 
@@ -47,6 +45,7 @@ contract GuardianAdministrator {
   error GuardianAdministrator__InvalidStatus();
   error GuardianAdministrator__NoPendingApplication();
   error GuardianAdministrator__ProposalStillActive();
+  error GuardianAdministrator__NotGuardianExists();
 
   modifier onlyTimelock() {
     if(msg.sender != timelock) {
@@ -56,47 +55,39 @@ contract GuardianAdministrator {
   }
 
   constructor(
-    IERC20 bondingToken_,
     IGovernor governor_,
-    IGuardianBondEscrow bondEscrow_,
     address timelock_,
-    address treasury_,
     uint256 minStake_
   ) {
-    if (address(bondingToken_) == address(0)) {
+    if (address(governor_) == address(0))
       revert CommonErrors.ZeroAddress();
-    }
-    if (address(governor_) == address(0)) {
-      revert CommonErrors.ZeroAddress();
-    }
-    if (address(bondEscrow_) == address(0)) {
-      revert CommonErrors.ZeroAddress();
-    }
-    if (timelock_ == address(0)) {
-      revert CommonErrors.ZeroAddress();
-    }
-    if (treasury_ == address(0)) {
-      revert CommonErrors.ZeroAddress();
-    }
-    if (minStake_ == 0) {
-      revert CommonErrors.ZeroAmount();
-    }
 
-    bondingToken = bondingToken_;
+    if (timelock_ == address(0))
+      revert CommonErrors.ZeroAddress();
+
+    if (minStake_ == 0)
+      revert CommonErrors.ZeroAmount();
+
     governor = governor_;
-    bondEscrow = bondEscrow_;
     timelock = timelock_;
-    treasury = treasury_;
     minStake = minStake_;
   }
 
+  function setBondEscrow(IGuardianBondEscrow bondEscrow_) external onlyTimelock {
+    if (address(bondEscrow_) == address(0))
+      revert CommonErrors.ZeroAddress();
+    bondEscrow = bondEscrow_;
+  }
+
   function applyGuardian() external {
+    if(address(bondEscrow) == address(0))
+      revert CommonErrors.ZeroAddress();
+
     address sender = msg.sender;
     GuardianDetail storage guardian = guardians[sender];
 
-    if (guardian.status != Status.Inactive) {
+    if (guardian.status != Status.Inactive)
       revert GuardianAdministrator__AlreadyApplied();
-    }
 
     guardian.status = Status.Pending;
     guardian.balance = minStake;
@@ -240,7 +231,7 @@ contract GuardianAdministrator {
     GuardianDetail storage guardianDetail = guardians[guardian];
 
     if (guardianDetail.status == Status.Inactive) {
-      revert CommonErrors.ZeroAddress();
+      revert GuardianAdministrator__NotGuardianExists();
     }
 
     return guardianDetail;

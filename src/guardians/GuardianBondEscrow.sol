@@ -37,7 +37,7 @@ contract GuardianBondEscrow is IGuardianBondEscrow, AccessControl {
   constructor(
     IERC20 bondingToken_,
     address treasury_,
-    address adminProtocol_,
+    address adminTimelock,
     address guardianAdministrator_
   ) {
     if (address(bondingToken_) == address(0)) {
@@ -46,7 +46,7 @@ contract GuardianBondEscrow is IGuardianBondEscrow, AccessControl {
     if (treasury_ == address(0)) {
       revert CommonErrors.ZeroAddress();
     }
-    if (adminProtocol_ == address(0)) {
+    if (adminTimelock == address(0)) {
       revert CommonErrors.ZeroAddress();
     }
     if (guardianAdministrator_ == address(0)) {
@@ -57,7 +57,7 @@ contract GuardianBondEscrow is IGuardianBondEscrow, AccessControl {
     treasury = treasury_;
     guardianAdministrator = guardianAdministrator_;
 
-    _grantRole(DEFAULT_ADMIN_ROLE, adminProtocol_);
+    _grantRole(DEFAULT_ADMIN_ROLE, adminTimelock);
     _grantRole(GUARDIAN_ADMINISTRATOR_ROLE, guardianAdministrator_);
   }
 

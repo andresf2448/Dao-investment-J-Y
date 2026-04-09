@@ -3,16 +3,16 @@ pragma solidity ^0.8.33;
 
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {IGuardianRegistry} from "../../interfaces/guardians/IGuardianRegistry.sol";
+import {IGuardianAdministrator} from "../../interfaces/guardians/IGuardianAdministrator.sol";
 import {IVaultRegistry} from "../../interfaces/vaults/IVaultRegistry.sol";
 import {IVault} from "../../interfaces/vaults/IVault.sol";
 import {IProtocolCore} from "../../interfaces/core/IProtocolCore.sol";
 import {CommonErrors} from "../../libraries/errors/CommonErrors.sol";
 
 contract VaultFactory is AccessControl {
+  address public immutable adminTimelock;
   address public immutable implementation;
-  address public immutable vaultAdmin;
-  address public guardianRegistry;
+  address public guardianAdministrator;
   address public vaultRegistry;
   address public router;
   address public core;
@@ -28,7 +28,7 @@ contract VaultFactory is AccessControl {
 
   event RouterUpdated(address indexed oldRouter, address indexed newRouter);
   event CoreUpdated(address indexed oldCore, address indexed newCore);
-  event GuardianRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
+  event GuardianAdministratorUpdated(address indexed oldAdministrator, address indexed newAdministrator);
   event VaultRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
 
   error VaultFactory__GuardianNotActive();
@@ -40,34 +40,32 @@ contract VaultFactory is AccessControl {
   error VaultFactory__NotGuardianCaller();
 
   constructor(
-    address admin_,
-    address implementation_,
-    address guardianRegistry_,
-    address vaultRegistry_,
-    address router_,
-    address core_,
-    address vaultAdmin_
+    address adminTimelock_, //tiemlock
+    address implementation_, //molde
+    address guardianAdministrator_,//direccion donde va a buscar los guardianes activos
+    address vaultRegistry_, //donde se guarda el vault creado registro
+    address router_, //setea el router para luego hacer las inversiones
+    address core_ // direccion del core para consultar assets soportados y si la creacion de vaults esta pausada
   ) {
     if(
-      admin_ == address(0) ||
+      adminTimelock_ == address(0) ||
       implementation_ == address(0) ||
-      guardianRegistry_ == address(0) ||
+      guardianAdministrator_ == address(0) ||
       vaultRegistry_ == address(0) ||
       router_ == address(0) ||
-      core_ == address(0) ||
-      vaultAdmin_ == address(0)
+      core_ == address(0)
     ) {
       revert CommonErrors.ZeroAddress();
     }
 
     implementation = implementation_;
-    guardianRegistry = guardianRegistry_;
+    guardianAdministrator = guardianAdministrator_;
     vaultRegistry = vaultRegistry_;
     router = router_;
     core = core_;
-    vaultAdmin = vaultAdmin_;
+    adminTimelock = adminTimelock_;
 
-    _grantRole(DEFAULT_ADMIN_ROLE, admin_);
+    _grantRole(DEFAULT_ADMIN_ROLE, adminTimelock_);
   }
 
   function makeSalt(address guardian, address asset)
@@ -119,7 +117,7 @@ contract VaultFactory is AccessControl {
     if (!IProtocolCore(core).isAssetSupported(asset))
       revert VaultFactory__UnsupportedAsset();
 
-    if (!IGuardianRegistry(guardianRegistry).isActiveGuardian(guardian))
+    if (!IGuardianAdministrator(guardianAdministrator).isActiveGuardian(guardian))
       revert VaultFactory__GuardianNotActive();
 
     address existingVault = IVaultRegistry(vaultRegistry)
@@ -151,7 +149,7 @@ contract VaultFactory is AccessControl {
       name,
       symbol,
       guardian,
-      vaultAdmin,
+      adminTimelock,
       address(this),
       router,
       core
@@ -200,16 +198,16 @@ contract VaultFactory is AccessControl {
     emit CoreUpdated(oldCore, newCore);
   }
 
-  function setGuardianRegistry(address newGuardianRegistry)
+  function setGuardianAdministrator(address newGuardianAdministrator)
     external
     onlyRole(DEFAULT_ADMIN_ROLE)
   {
-    if(newGuardianRegistry == address(0)) revert CommonErrors.ZeroAddress();
+    if(newGuardianAdministrator == address(0)) revert CommonErrors.ZeroAddress();
 
-    address oldRegistry = guardianRegistry;
-    guardianRegistry = newGuardianRegistry;
+    address oldAdministrator = guardianAdministrator;
+    guardianAdministrator = newGuardianAdministrator;
 
-    emit GuardianRegistryUpdated(oldRegistry, newGuardianRegistry);
+    emit GuardianAdministratorUpdated(oldAdministrator, newGuardianAdministrator);
   }
 
   function setVaultRegistry(address newVaultRegistry)

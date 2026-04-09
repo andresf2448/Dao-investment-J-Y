@@ -19,7 +19,7 @@ contract ProtocolCore is
   bool public vaultCreationPaused;
   bool public depositsPaused;
 
-  event SupportedAssetSet(address indexed asset, bool alliwed);
+  event SupportedAssetSet(address indexed asset, bool allowed);
   event VaultCreationPauseSet(bool paused);
   event DepositsPauseSet(bool paused);
 
@@ -28,17 +28,17 @@ contract ProtocolCore is
   }
 
   function initialize(
-    address admin_,
-    address emergencyOperator_
+    address adminTimelock,
+    address emergencyOperator
   ) external initializer {
-    if(admin_ == address(0) || emergencyOperator_ == address(0))
+    if(adminTimelock == address(0) || emergencyOperator == address(0))
       revert CommonErrors.ZeroAddress();
 
     __AccessControl_init();
 
-    _grantRole(DEFAULT_ADMIN_ROLE, admin_);
-    _grantRole(MANAGER_ROLE, admin_);
-    _grantRole(EMERGENCY_ROLE, emergencyOperator_);
+    _grantRole(DEFAULT_ADMIN_ROLE, adminTimelock);
+    _grantRole(MANAGER_ROLE, adminTimelock);
+    _grantRole(EMERGENCY_ROLE, emergencyOperator);
   }
 
   function setSupportedAsset(
