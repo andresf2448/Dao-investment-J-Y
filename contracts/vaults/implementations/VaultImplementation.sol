@@ -27,6 +27,7 @@ contract VaultImplementation is
   using SafeERC20 for IERC20;
 
   bytes32 public constant GUARDIAN_ROLE = keccak256("GUARDIAN_ROLE");
+  bytes32 public constant STRATEGY_EXECUTOR_ROLE = keccak256("STRATEGY_EXECUTOR_ROLE");
 
   address public guardian;
   address public factory;
@@ -64,11 +65,6 @@ contract VaultImplementation is
   error VaultImplementation__DepositsPaused();
   error VaultImplementation__NotRouter();
   error VaultImplementation__ExternalCallFailed();
-
-  modifier onlyRouter() {
-    if(msg.sender != router) revert VaultImplementation__NotRouter();
-    _;
-  }
 
   constructor() {
     _disableInitializers();
@@ -109,6 +105,7 @@ contract VaultImplementation is
 
     _grantRole(DEFAULT_ADMIN_ROLE, admin_);
     _grantRole(GUARDIAN_ROLE, guardian_);
+    _grantRole(STRATEGY_EXECUTOR_ROLE, router_);
 
     emit VaultInitialized(
       asset_,
@@ -124,7 +121,9 @@ contract VaultImplementation is
     if(newRouter == address(0)) revert CommonErrors.ZeroAddress();
 
     address oldRouter = router;
+    _revokeRole(STRATEGY_EXECUTOR_ROLE, oldRouter);
     router = newRouter;
+    _grantRole(STRATEGY_EXECUTOR_ROLE, newRouter);
 
     emit RouterUpdated(oldRouter, newRouter);
   }
@@ -153,7 +152,7 @@ contract VaultImplementation is
     nonReentrant
     returns(uint256 shares)
   {
-    if(IProtocolCore(core).depositsPaused())
+    if(IProtocolCore(core).isDepositsPaused())
       revert VaultImplementation__DepositsPaused();
 
     return super.deposit(assets, receiver);
@@ -166,9 +165,8 @@ contract VaultImplementation is
     nonReentrant
     returns(uint256 assets)
   {
-    if (IProtocolCore(core).depositsPaused()) {
+    if (IProtocolCore(core).isDepositsPaused())
       revert VaultImplementation__DepositsPaused();
-    }
 
     return super.mint(shares, receiver);
   }
@@ -224,7 +222,7 @@ contract VaultImplementation is
   )
     external
     override
-    onlyRouter
+    onlyRole(STRATEGY_EXECUTOR_ROLE)
     returns(bytes memory result)
   {
     if(target == address(0))
@@ -241,7 +239,7 @@ contract VaultImplementation is
     address token,
     address spender,
     uint256 amount
-  ) external override onlyRouter {
+  ) external override onlyRole(STRATEGY_EXECUTOR_ROLE) {
     if(token == address(0) || spender == address(0))
       revert CommonErrors.ZeroAddress();
 

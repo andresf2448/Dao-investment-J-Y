@@ -99,24 +99,18 @@ contract VaultFactory is AccessControl {
   }
 
   function createVault(
-    address guardian,
     address asset,
     string calldata name,
     string calldata symbol
   ) external returns(address vault, bytes32 salt) {
-    if (guardian == address(0) || asset == address(0)) {
+    address guardian = msg.sender;
+
+    if (guardian == address(0) || asset == address(0))
       revert CommonErrors.ZeroAddress();
-    }
-
-    if (msg.sender != guardian)
-      revert VaultFactory__NotGuardianCaller();
-
-    if (IProtocolCore(core).vaultCreationPaused())
+    if (IProtocolCore(core).isVaultCreationPaused())
       revert VaultFactory__VaultCreationPaused();
-
-    if (!IProtocolCore(core).isAssetSupported(asset))
+    if (!IProtocolCore(core).isVaultAssetSupported(asset))
       revert VaultFactory__UnsupportedAsset();
-
     if (!IGuardianAdministrator(guardianAdministrator).isActiveGuardian(guardian))
       revert VaultFactory__GuardianNotActive();
 
@@ -167,7 +161,7 @@ contract VaultFactory is AccessControl {
     );
   }
 
-  function isDeploy(
+  function isDeployed(
     address guardian,
     address asset
   )

@@ -6,5 +6,4 @@ interface IGuardianBondEscrow {
   function refund(address guardian, uint256 amount) external;
   function releaseOnResign(address guardian, uint256 amount) external;
   function slashToTreasury(address guardian, uint256 amount) external;
-  function bondedBalance(address guardian) external view returns (uint256);
 }

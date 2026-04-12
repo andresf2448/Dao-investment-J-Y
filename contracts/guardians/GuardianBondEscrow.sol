@@ -12,7 +12,7 @@ contract GuardianBondEscrow is IGuardianBondEscrow, AccessControl {
 
   bytes32 public constant GUARDIAN_ADMINISTRATOR_ROLE = keccak256("GUARDIAN_ADMINISTRATOR_ROLE");
 
-  IERC20 public immutable bondingToken;
+  IERC20 public immutable guardianApplicationToken;
   address public immutable treasury;
   address public guardianAdministrator;
 
@@ -35,12 +35,12 @@ contract GuardianBondEscrow is IGuardianBondEscrow, AccessControl {
   error GuardianBondEscrow__SameGuardianAdministrator();
 
   constructor(
-    IERC20 bondingToken_,
+    IERC20 guardianApplicationToken_,
     address treasury_,
     address adminTimelock,
     address guardianAdministrator_
   ) {
-    if (address(bondingToken_) == address(0)) {
+    if (address(guardianApplicationToken_) == address(0)) {
       revert CommonErrors.ZeroAddress();
     }
     if (treasury_ == address(0)) {
@@ -53,7 +53,7 @@ contract GuardianBondEscrow is IGuardianBondEscrow, AccessControl {
       revert CommonErrors.ZeroAddress();
     }
 
-    bondingToken = bondingToken_;
+    guardianApplicationToken = guardianApplicationToken_;
     treasury = treasury_;
     guardianAdministrator = guardianAdministrator_;
 
@@ -94,7 +94,7 @@ contract GuardianBondEscrow is IGuardianBondEscrow, AccessControl {
     if (amount == 0) revert CommonErrors.ZeroAmount();
 
     _bonded[guardian] += amount;
-    bondingToken.safeTransferFrom(guardian, address(this), amount);
+    guardianApplicationToken.safeTransferFrom(guardian, address(this), amount);
 
     emit BondLocked(guardian, amount);
   }
@@ -110,7 +110,7 @@ contract GuardianBondEscrow is IGuardianBondEscrow, AccessControl {
     if (currentBond < amount) revert GuardianBondEscrow__InsufficientBond();
 
     _bonded[guardian] = currentBond - amount;
-    bondingToken.safeTransfer(guardian, amount);
+    guardianApplicationToken.safeTransfer(guardian, amount);
 
     emit BondRefunded(guardian, amount);
   }
@@ -126,7 +126,7 @@ contract GuardianBondEscrow is IGuardianBondEscrow, AccessControl {
     if (currentBond < amount) revert GuardianBondEscrow__InsufficientBond();
 
     _bonded[guardian] = currentBond - amount;
-    bondingToken.safeTransfer(guardian, amount);
+    guardianApplicationToken.safeTransfer(guardian, amount);
 
     emit BondReleasedOnResign(guardian, amount);
   }
@@ -142,17 +142,16 @@ contract GuardianBondEscrow is IGuardianBondEscrow, AccessControl {
     if (currentBond < amount) revert GuardianBondEscrow__InsufficientBond();
 
     _bonded[guardian] = currentBond - amount;
-    bondingToken.safeTransfer(treasury, amount);
+    guardianApplicationToken.safeTransfer(treasury, amount);
 
     emit BondSlashedToTreasury(guardian, amount, treasury);
   }
 
-  function bondedBalance(address guardian)
+  function getApplicationTokenBalance()
     external
     view
-    override
     returns (uint256)
   {
-    return _bonded[guardian];
+    return guardianApplicationToken.balanceOf(address(this));
   }
 }

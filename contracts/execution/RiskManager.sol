@@ -116,12 +116,12 @@ contract RiskManager is
     );
   }
 
-  function pauseExecution() external onlyRole(EMERGENCY_ROLE) {
+  function pauseAdapterExecution() external onlyRole(EMERGENCY_ROLE) {
     executionPaused = true;
     emit ExecutionPausedSet(true);
   }
 
-  function unpauseExecution() external onlyRole(MANAGER_ROLE) {
+  function unpauseAdapterExecution() external onlyRole(MANAGER_ROLE) {
     executionPaused = false;
     emit ExecutionPausedSet(false);
   }
