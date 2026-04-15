@@ -90,15 +90,6 @@ contract ProtocolCore is
   }
 
   function setSupportedGenesisTokens(address[] memory allowedGenesisTokens) public onlyRole(MANAGER_ROLE) {
-    uint256 length = allowedGenesisTokens.length;
-
-    for (uint256 i = 0; i < length; i++) {
-      if (allowedGenesisTokens[i] == address(0)) revert CommonErrors.ZeroAddress();
-      _supportedGenesisTokens.add(allowedGenesisTokens[i]);
-    }
-  }
-
-  function setSupportedGenesisTokens(address[] memory allowedGenesisTokens) public onlyRole(MANAGER_ROLE) {
     _setSupportedGenesisTokens(allowedGenesisTokens);
   }
 
