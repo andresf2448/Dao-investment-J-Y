@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply font-sans antialiased;
+  }
+}
+
+@layer utilities {
+  .container-app {
+    @apply max-w-7xl mx-auto px-6;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface shadow-card rounded-xl border border-border;
+  }
+
+  .card-header {
+    @apply px-6 py-4 border-b border-border font-medium;
+  }
+
+  .card-content {
+    @apply p-6;
+  }
+
+  .btn-primary {
+    @apply bg-primary text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-hover transition-colors;
+  }
+
+  .btn-secondary {
+    @apply border border-border text-text-primary px-4 py-2 rounded-lg font-medium hover:bg-gray-50 transition-colors;
+  }
+
+  .badge-success {
+    @apply text-xs px-3 py-1 rounded-full bg-green-100 text-green-700 font-medium;
+  }
+
+  .badge-warning {
+    @apply text-xs px-3 py-1 rounded-full bg-yellow-100 text-yellow-700 font-medium;
+  }
+
+  .badge-danger {
+    @apply text-xs px-3 py-1 rounded-full bg-red-100 text-red-700 font-medium;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D1D5DB;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
