@@ -6,29 +6,27 @@ import {HelperConfig} from "./HelperConfig.s.sol";
 import {AaveV3Adapter} from "../../contracts/adapters/aave/AaveV3Adapter.sol";
 
 contract DeployAaveV3Adapter is Script {
-    address public aaveV3AdapterAddress;
+  function run(address _strategyRouter, address _pool, address _deployer) external returns (AaveV3Adapter) {
+    HelperConfig config = new HelperConfig();
+    HelperConfig.NetworkConfig memory networkConfig = config.getActiveNetworkConfig();
 
-    function run(address _strategyRouter, address _pool, address _deployer) external {
-        HelperConfig config = new HelperConfig();
-        HelperConfig.NetworkConfig memory networkConfig = config.getActiveNetworkConfig();
+    uint256 deployerPrivateKey = networkConfig.deployerPrivateKey;
+    address deployer = _deployer == address(0) ? vm.addr(deployerPrivateKey) : _deployer;
+    address pool = _pool == address(0) ? networkConfig.aavePool : _pool;
 
-        uint256 deployerPrivateKey = networkConfig.deployerPrivateKey;
-        address deployer = _deployer == address(0) ? vm.addr(deployerPrivateKey) : _deployer;
-        address pool = _pool == address(0) ? networkConfig.aavePool : _pool;
-
-        if (_strategyRouter == address(0)) {
-            console.log("Error: StrategyRouter address required");
-            revert("StrategyRouter not provided");
-        }
-
-        vm.startBroadcast(deployerPrivateKey);
-            AaveV3Adapter aaveV3Adapter = new AaveV3Adapter({
-                router_: _strategyRouter,
-                pool_: pool
-            });
-        vm.stopBroadcast();
-
-        aaveV3AdapterAddress = address(aaveV3Adapter);
-        console.log("AaveV3Adapter deployed at:", address(aaveV3Adapter));
+    if (_strategyRouter == address(0)) {
+      console.log("Error: StrategyRouter address required");
+      revert("StrategyRouter not provided");
     }
+
+    vm.startBroadcast(deployerPrivateKey);
+      AaveV3Adapter aaveV3Adapter = new AaveV3Adapter({
+        router_: _strategyRouter,
+        pool_: pool
+      });
+    vm.stopBroadcast();
+
+    console.log("AaveV3Adapter deployed at:", address(aaveV3Adapter));
+    return aaveV3Adapter;
+  }
 }
