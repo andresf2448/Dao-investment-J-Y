@@ -97,6 +97,21 @@ contract DeployInvestmentDao is Script {
     deployTreasury.run(timeLock, deployer);
     address treasury = deployTreasury.treasuryAddress();
 
+    DeployGenesisBonding deployGenesisBonding = new DeployGenesisBonding();
+    deployGenesisBonding.run(
+      governanceToken,
+      treasury,
+      deployer,
+      networkConfig.allowedGenesisTokens
+    );
+    address genesisBonding = deployGenesisBonding.genesisBondingAddress();
+
+    vm.startPrank(deployer);
+      deployGovernanceToken.grantRole(deployGovernanceToken.MINTER_ROLE(), deployGenesisBonding.genesisBondingAddress());
+      deployGovernanceToken.grantRole(deployGovernanceToken.DEFAULT_ADMIN_ROLE(), timeLock);
+      deployGovernanceToken.revokeRole(deployGovernanceToken.DEFAULT_ADMIN_ROLE(), deployer);
+    vm.stopPrank();
+
     DeployDaoGovernor deployDaoGovernor = new DeployDaoGovernor();
     deployDaoGovernor.run(governanceToken, timeLock, deployer);
     address daoGovernor = deployDaoGovernor.daoGovernorAddress();
@@ -134,15 +149,6 @@ contract DeployInvestmentDao is Script {
     DeployVaultImplementation deployVaultImplementation = new DeployVaultImplementation();
     deployVaultImplementation.run(deployer);
     address vaultImplementation = deployVaultImplementation.vaultImplementationAddress();
-
-    DeployGenesisBonding deployGenesisBonding = new DeployGenesisBonding();
-    deployGenesisBonding.run(
-      governanceToken,
-      treasury,
-      deployer,
-      networkConfig.allowedGenesisTokens
-    );
-    address genesisBonding = deployGenesisBonding.genesisBondingAddress();
 
     DeployVaultFactory deployVaultFactory = new DeployVaultFactory();
     deployVaultFactory.run(
