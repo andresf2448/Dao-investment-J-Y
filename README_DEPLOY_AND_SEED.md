@@ -429,7 +429,6 @@ Hace esto:
 - serializa addresses clave del despliegue
 
 Campos importantes:
-- `allowedGenesisToken`
 - `aavePool`
 - `timeLock`
 - `governanceToken`
@@ -514,13 +513,14 @@ Intención:
 
 En [líneas 32-42](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/local/SeedLocal.s.sol:32) lee `deployments/anvil.json` y obtiene:
 
-- `mockUsdc`
 - `timeLock`
 - `guardianAdministrator`
 - `guardianBondEscrow`
 - `genesisBonding`
 - `governanceToken`
 - `vaultFactory`
+
+Luego deriva `mockUsdc` consultando `GuardianBondEscrow.guardianApplicationToken()`.
 
 Intencion:
 - operar contra el deployment real mas reciente

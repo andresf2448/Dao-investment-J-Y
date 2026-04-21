@@ -303,7 +303,6 @@ contract DeployInvestmentDao is Script {
 
     string memory json = "deployment";
     vm.serializeUint(json, "chainId", block.chainid);
-    vm.serializeAddress(json, "allowedGenesisToken", networkConfig.allowedGenesisTokens[0]);
     vm.serializeAddress(json, "aavePool", networkConfig.aavePool);
     vm.serializeAddress(json, "timeLock", address(timeLock));
     vm.serializeAddress(json, "governanceToken", address(governanceToken));

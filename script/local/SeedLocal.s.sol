@@ -9,6 +9,7 @@ import {MockERC20} from "../../test/mocks/MockERC20.sol";
 import {GenesisBonding} from "../../contracts/bootstrap/GenesisBonding.sol";
 import {GovernanceToken} from "../../contracts/governance/GovernanceToken.sol";
 import {GuardianAdministrator} from "../../contracts/guardians/GuardianAdministrator.sol";
+import {GuardianBondEscrow} from "../../contracts/guardians/GuardianBondEscrow.sol";
 import {VaultFactory} from "../../contracts/vaults/factory/VaultFactory.sol";
 
 contract SeedLocal is Script {
@@ -33,13 +34,13 @@ contract SeedLocal is Script {
     HelperConfig.NetworkConfig memory networkConfig = config.getActiveNetworkConfig();
     string memory json = vm.readFile("deployments/anvil.json");
 
-    address mockUsdc = abi.decode(vm.parseJson(json, ".allowedGenesisToken"), (address));
     address timeLock = abi.decode(vm.parseJson(json, ".timeLock"), (address));
     address guardianAdministrator = abi.decode(vm.parseJson(json, ".guardianAdministrator"), (address));
     address guardianBondEscrow = abi.decode(vm.parseJson(json, ".guardianBondEscrow"), (address));
     address genesisBonding = abi.decode(vm.parseJson(json, ".genesisBonding"), (address));
     address governanceToken = abi.decode(vm.parseJson(json, ".governanceToken"), (address));
     address vaultFactory = abi.decode(vm.parseJson(json, ".vaultFactory"), (address));
+    address mockUsdc = address(GuardianBondEscrow(guardianBondEscrow).guardianApplicationToken());
 
     (address guardianAddr, uint256 guardianPk) = makeAddrAndKey("seed-guardian");
     (address investor1Addr, uint256 investor1Pk) = makeAddrAndKey("seed-investor-1");
