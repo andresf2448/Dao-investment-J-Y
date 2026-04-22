@@ -104,6 +104,10 @@ contract SeedLocal is Script {
     address guardianAdministrator,
     address timeLock
   ) internal {
+    // Governor checks past votes, so we advance one block before proposing.
+    vm.rpc("evm_mine", "[]");
+    vm.roll(block.number + 1);
+
     vm.startBroadcast(guardian.privateKey);
     MockERC20(mockUsdc).approve(guardianBondEscrow, GUARDIAN_BOND);
     GuardianAdministrator(guardianAdministrator).applyGuardian();
