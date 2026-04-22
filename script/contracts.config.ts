@@ -49,5 +49,10 @@ export const EXPORTED_CONTRACTS: ExportedContract[] = [
     key: "guardianAdministrator",
     contractName: "GuardianAdministrator",
     artifactPath: "out/GuardianAdministrator.sol/GuardianAdministrator.json",
+  },
+  {
+    key: "guardianBondEscrow",
+    contractName: "GuardianBondEscrow",
+    artifactPath: "out/GuardianBondEscrow.sol/GuardianBondEscrow.json",
   }
 ]

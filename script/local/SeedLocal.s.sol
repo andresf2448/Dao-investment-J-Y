@@ -7,7 +7,6 @@ import {TimeLock} from "../../contracts/governance/TimeLock.sol";
 import {IERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {MockERC20} from "../../test/mocks/MockERC20.sol";
 import {GenesisBonding} from "../../contracts/bootstrap/GenesisBonding.sol";
-import {GovernanceToken} from "../../contracts/governance/GovernanceToken.sol";
 import {GuardianAdministrator} from "../../contracts/guardians/GuardianAdministrator.sol";
 import {GuardianBondEscrow} from "../../contracts/guardians/GuardianBondEscrow.sol";
 import {VaultFactory} from "../../contracts/vaults/factory/VaultFactory.sol";
@@ -15,7 +14,6 @@ import {VaultFactory} from "../../contracts/vaults/factory/VaultFactory.sol";
 contract SeedLocal is Script {
   uint256 constant GAS_BUFFER = 1 ether;
   uint256 constant GUARDIAN_BOND = 100e18;
-  uint256 constant GUARDIAN_GVT_BUY = 20e18;
   uint256 constant INVESTOR1_GVT_BUY = 50e18;
   uint256 constant INVESTOR2_GVT_BUY = 30e18;
   uint256 constant INVESTOR1_DEPOSIT = 10e18;
@@ -38,7 +36,6 @@ contract SeedLocal is Script {
     address guardianAdministrator = abi.decode(vm.parseJson(json, ".guardianAdministrator"), (address));
     address guardianBondEscrow = abi.decode(vm.parseJson(json, ".guardianBondEscrow"), (address));
     address genesisBonding = abi.decode(vm.parseJson(json, ".genesisBonding"), (address));
-    address governanceToken = abi.decode(vm.parseJson(json, ".governanceToken"), (address));
     address vaultFactory = abi.decode(vm.parseJson(json, ".vaultFactory"), (address));
     address mockUsdc = address(GuardianBondEscrow(guardianBondEscrow).guardianApplicationToken());
 
@@ -58,11 +55,10 @@ contract SeedLocal is Script {
     _fundAccount(networkConfig.deployerPrivateKey, investor1.addr, GAS_BUFFER);
     _fundAccount(networkConfig.deployerPrivateKey, investor2.addr, GAS_BUFFER);
 
-    _mintUsdc(networkConfig.deployerPrivateKey, mockUsdc, guardian.addr, GUARDIAN_BOND + GUARDIAN_GVT_BUY);
+    _mintUsdc(networkConfig.deployerPrivateKey, mockUsdc, guardian.addr, GUARDIAN_BOND);
     _mintUsdc(networkConfig.deployerPrivateKey, mockUsdc, investor1.addr, INVESTOR1_GVT_BUY + INVESTOR1_DEPOSIT);
     _mintUsdc(networkConfig.deployerPrivateKey, mockUsdc, investor2.addr, INVESTOR2_GVT_BUY + INVESTOR2_DEPOSIT);
 
-    _buyAndDelegateGuardianVotes(guardian, mockUsdc, genesisBonding, governanceToken, guardianAdministrator);
     _activateGuardian(
       networkConfig.deployerPrivateKey,
       guardian,
@@ -98,21 +94,6 @@ contract SeedLocal is Script {
     vm.startBroadcast(deployerPrivateKey);
     MockERC20(mockUsdc).mint(to, amount);
     vm.stopBroadcast();
-  }
-
-  function _buyAndDelegateGuardianVotes(
-    Participant memory guardian,
-    address mockUsdc,
-    address genesisBonding,
-    address governanceToken,
-    address guardianAdministrator
-  ) internal {
-    vm.startBroadcast(guardian.privateKey);
-    MockERC20(mockUsdc).approve(genesisBonding, GUARDIAN_GVT_BUY);
-    GenesisBonding(genesisBonding).buy(mockUsdc, GUARDIAN_GVT_BUY);
-    GovernanceToken(governanceToken).delegate(guardianAdministrator);
-    vm.stopBroadcast();
-    vm.roll(block.number + 1);
   }
 
   function _activateGuardian(

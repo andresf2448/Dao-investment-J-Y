@@ -19,6 +19,7 @@ import {DeployVaultFactory} from "./DeployVaultFactory.s.sol";
 import {DeployAaveV3Adapter} from "./DeployAaveV3Adapter.s.sol";
 import {DeployMocks} from "./DeployMocks.s.sol";
 import {TimeLock} from "../../contracts/governance/TimeLock.sol";
+import {DaoGovernor} from "../../contracts/governance/DaoGovernor.sol";
 import {GovernanceToken} from "../../contracts/governance/GovernanceToken.sol";
 import {GuardianAdministrator} from "../../contracts/guardians/GuardianAdministrator.sol";
 import {VaultRegistry} from "../../contracts/vaults/registry/VaultRegistry.sol";
@@ -119,12 +120,6 @@ contract DeployInvestmentDao is Script {
       networkConfig.allowedGenesisTokens
     ));
 
-    vm.startBroadcast(networkConfig.deployerPrivateKey);
-      governanceToken.grantRole(governanceToken.MINTER_ROLE(), genesisBonding);
-      governanceToken.grantRole(governanceToken.DEFAULT_ADMIN_ROLE(), address(timeLock));
-      governanceToken.revokeRole(governanceToken.DEFAULT_ADMIN_ROLE(), deployer);
-    vm.stopBroadcast();
-
     DeployDaoGovernor deployDaoGovernor = new DeployDaoGovernor();
     address daoGovernor = address(deployDaoGovernor.run(config, address(governanceToken), address(timeLock), deployer));
 
@@ -136,6 +131,19 @@ contract DeployInvestmentDao is Script {
 
     DeployGuardianAdministrator deployGuardianAdministrator = new DeployGuardianAdministrator();
     address guardianAdministrator = address(deployGuardianAdministrator.run(config, daoGovernor, address(timeLock), deployer));
+
+    vm.startBroadcast(networkConfig.deployerPrivateKey);
+      governanceToken.grantRole(governanceToken.MINTER_ROLE(), genesisBonding);
+      governanceToken.grantRole(governanceToken.MINTER_ROLE(), deployer);
+      governanceToken.mint(guardianAdministrator, DaoGovernor(payable(daoGovernor)).proposalThreshold());
+      governanceToken.revokeRole(governanceToken.MINTER_ROLE(), deployer);
+      governanceToken.grantRole(governanceToken.DEFAULT_ADMIN_ROLE(), address(timeLock));
+      governanceToken.revokeRole(governanceToken.DEFAULT_ADMIN_ROLE(), deployer);
+    vm.stopBroadcast();
+
+    vm.startBroadcast(networkConfig.deployerPrivateKey);
+      GuardianAdministrator(guardianAdministrator).selfDelegateGovernanceVotes(address(governanceToken));
+    vm.stopBroadcast();
 
     DeployGuardianBondEscrow deployGuardianBondEscrow = new DeployGuardianBondEscrow();
     address guardianBondEscrow = address(deployGuardianBondEscrow.run(

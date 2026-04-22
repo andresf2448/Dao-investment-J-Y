@@ -2,6 +2,7 @@
 pragma solidity ^0.8.33;
 
 import {IGovernor} from "@openzeppelin/contracts/governance/IGovernor.sol";
+import {IVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {IGuardianBondEscrow} from "../interfaces/guardians/IGuardianBondEscrow.sol";
@@ -42,6 +43,7 @@ contract GuardianAdministrator {
   event GuardianResigned(address indexed guardian, uint256 stakeRefunded);
   event GuardianBanned(address indexed guardian, uint256 stakeForfeit);
   event MinStakeUpdated(uint256 oldStake, uint256 newStake);
+  event GovernanceVotesDelegated(address indexed governanceToken, address indexed delegatee);
 
   error GuardianAdministrator__AlreadyApplied();
   error GuardianAdministrator__InvalidStatus();
@@ -79,6 +81,16 @@ contract GuardianAdministrator {
     if (address(bondEscrow_) == address(0))
       revert CommonErrors.ZeroAddress();
     bondEscrow = bondEscrow_;
+  }
+
+  function selfDelegateGovernanceVotes(address governanceToken_) external {
+    if (governanceToken_ == address(0)) {
+      revert CommonErrors.ZeroAddress();
+    }
+
+    IVotes(governanceToken_).delegate(address(this));
+
+    emit GovernanceVotesDelegated(governanceToken_, address(this));
   }
 
   function applyGuardian() external {
