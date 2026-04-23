@@ -152,7 +152,7 @@ contract VaultImplementation is
     nonReentrant
     returns(uint256 shares)
   {
-    if(IProtocolCore(core).isDepositsPaused())
+    if(IProtocolCore(core).isVaultDepositsPaused())
       revert VaultImplementation__DepositsPaused();
 
     return super.deposit(assets, receiver);
@@ -165,7 +165,7 @@ contract VaultImplementation is
     nonReentrant
     returns(uint256 assets)
   {
-    if (IProtocolCore(core).isDepositsPaused())
+    if (IProtocolCore(core).isVaultDepositsPaused())
       revert VaultImplementation__DepositsPaused();
 
     return super.mint(shares, receiver);

@@ -17,15 +17,15 @@ contract ProtocolCore is
 
   bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
   bytes32 public constant EMERGENCY_ROLE = keccak256("EMERGENCY_ROLE");
-  mapping(address => bool) private _supportedAssets;
+  mapping(address => bool) private _supportedVaultAssets;
   EnumerableSet.AddressSet private _supportedGenesisTokens;
   bool public isVaultCreationPaused;
-  bool public isDepositsPaused;
+  bool public isVaultDepositsPaused;
   address payable private adminTimelock;
 
-  event SupportedAssetSet(address indexed asset, bool allowed);
+  event SupportedVaultAssetSet(address indexed asset, bool allowed);
   event VaultCreationPauseSet(bool paused);
-  event DepositsPauseSet(bool paused);
+  event VaultDepositsPauseSet(bool paused);
 
   constructor() {
     _disableInitializers();
@@ -62,7 +62,7 @@ contract ProtocolCore is
   }
 
   function isVaultAssetSupported(address asset) external view returns(bool) {
-    return _supportedAssets[asset];
+    return _supportedVaultAssets[asset];
   }
 
   function pauseVaultCreation() external onlyRole(EMERGENCY_ROLE) {
@@ -71,8 +71,8 @@ contract ProtocolCore is
   }
 
   function pauseVaultDeposits() external onlyRole(EMERGENCY_ROLE) {
-    isDepositsPaused = true;
-    emit DepositsPauseSet(true);
+    isVaultDepositsPaused = true;
+    emit VaultDepositsPauseSet(true);
   }
 
   function unpauseVaultCreation() external onlyRole(MANAGER_ROLE) {
@@ -81,8 +81,8 @@ contract ProtocolCore is
   }
 
   function unpauseVaultDeposits() external onlyRole(MANAGER_ROLE) {
-    isDepositsPaused = false;
-    emit DepositsPauseSet(false);
+    isVaultDepositsPaused = false;
+    emit VaultDepositsPauseSet(false);
   }
 
   function hasGenesisToken(address token) external view returns(bool) {
@@ -112,8 +112,8 @@ contract ProtocolCore is
 
   function _setSupportedVaultToken(address allowedVaultToken, bool allowed) internal {
     if (allowedVaultToken == address(0)) revert CommonErrors.ZeroAddress();
-    _supportedAssets[allowedVaultToken] = allowed;
-    emit SupportedAssetSet(allowedVaultToken, allowed);
+    _supportedVaultAssets[allowedVaultToken] = allowed;
+    emit SupportedVaultAssetSet(allowedVaultToken, allowed);
   }
 
   function _authorizeUpgrade(
