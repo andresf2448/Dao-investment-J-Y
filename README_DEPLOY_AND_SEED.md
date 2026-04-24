@@ -1,682 +1,478 @@
 # Deploy And Seed Flow
 
-Este documento describe, paso por paso, como funciona actualmente el despliegue principal en [script/deploy/DeployInvestmentDao.s.sol](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol:1) y como funciona el seed local en [script/local/SeedLocal.s.sol](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/local/SeedLocal.s.sol:1).
+Este documento resume el flujo actual de despliegue y seed local del protocolo.
 
-## Objetivo del deploy principal
+Archivos principales:
+- [script/deploy/DeployInvestmentDao.s.sol](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol)
+- [script/local/SeedLocal.s.sol](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/local/SeedLocal.s.sol)
 
-El script `DeployInvestmentDao` hace tres cosas de alto nivel:
+## Comandos principales
 
-1. Prepara la configuracion de red activa.
-2. Despliega todos los contratos en el orden correcto, resolviendo dependencias.
-3. Ejecuta configuraciones administrativas posteriores al deploy, genera `deployments/<network>.json` y prepara la estructura del SDK.
+Para levantar un entorno local completo en Anvil:
 
-## Punto de entrada
-
-La funcion de entrada es [run()](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol:27).
-
-Dentro de `run()` pasa esto:
-
-1. Se crea `HelperConfig`.
-2. Se obtiene `networkConfig`.
-3. Se deriva la address del deployer desde `networkConfig.deployerPrivateKey`.
-4. Si la red es Anvil (`chainid == 31337`), se despliegan mocks y se reemplazan placeholders de config.
-5. Se llama `deployContracts(...)`.
-6. Se genera `deployments/<network>.json`.
-7. Se crea la estructura base de `contracts-sdk/src`.
-
-## Ajuste previo para Anvil
-
-En [líneas 32-41](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol:32), si la red es local:
-
-1. Se ejecuta `DeployMocks.run()`.
-2. Se obtiene:
-   - `mockERC20`
-   - `mockAavePool`
-3. Se actualiza `networkConfig`:
-   - `allowedGenesisTokens[0] = mockERC20`
-   - `allowedVaultToken = mockERC20`
-   - `aavePool = mockAavePool`
-
-Intencion:
-- evitar placeholders `address(0)` en local
-- garantizar que el deploy principal use mocks reales desde el inicio
-
-## Flujo completo de `deployContracts(...)`
-
-La funcion principal del despliegue real es [deployContracts(...)](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol:81).
-
-### 1. DeployTimeLock
-
-Se ejecuta en [líneas 104-105](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol:104).
-
-Script usado: [DeployTimeLock.s.sol](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployTimeLock.s.sol:8)
-
-Parametros que recibe:
-- `config`
-- `deployer`
-
-Internamente usa:
-- `deployerPrivateKey`
-- `minDelay`
-- `proposers`
-- `executors`
-- `admin`
-
-Valor importante:
-- en Anvil `minDelay = 0`
-- en otras redes `minDelay = 10`
-
-Resultado:
-- despliega `TimeLock`
-- el deployer queda inicialmente como proposer, executor y admin opcional
-- el propio timelock tambien queda auto-administrado por OZ
-
-### 2. DeployGovernanceToken
-
-Se ejecuta en [líneas 107-108](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol:107).
-
-Script usado: [DeployGovernanceToken.s.sol](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployGovernanceToken.s.sol:8)
-
-Parametros:
-- `config`
-- `deployer`
-
-Resultado:
-- despliega `GovernanceToken`
-- el admin inicial del token queda en el deployer
-
-### 3. DeployTreasury
-
-Se ejecuta en [líneas 110-111](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol:110).
-
-Script usado: [DeployTreasury.s.sol](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployTreasury.s.sol:8)
-
-Parametros:
-- `config`
-- `address(timeLock)`
-- `deployer`
-
-Resultado:
-- despliega `Treasury`
-- lo deja apuntando al `TimeLock`
-- tambien recibe el deployer como rol operativo secundario del constructor de `Treasury`
-
-### 4. DeployGenesisBonding
-
-Se ejecuta en [líneas 113-120](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol:113).
-
-Script usado: [DeployGenesisBonding.s.sol](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployGenesisBonding.s.sol:9)
-
-Parametros:
-- `config`
-- `address(governanceToken)`
-- `treasury`
-- `deployer`
-- `networkConfig.allowedGenesisTokens`
-
-Internamente, `GenesisBonding` se despliega con:
-- `adminTimelock = deployer`
-- `sweepRole = deployer`
-- `allowedGenesisTokens = allowedTokens`
-- `governanceToken_ = governanceToken`
-- `treasury_ = treasury`
-- `rate_ = 100`
-
-Resultado:
-- despliega `GenesisBonding`
-- el contrato queda listo para vender governance token a cambio de los `allowedGenesisTokens`
-
-### 5. Transferencia y ajuste de roles del GovernanceToken
-
-Este bloque ocurre inmediatamente despues de `DeployGenesisBonding`, en [líneas 122-126](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol:122).
-
-```solidity
-vm.startBroadcast(networkConfig.deployerPrivateKey);
-governanceToken.grantRole(governanceToken.MINTER_ROLE(), genesisBonding);
-governanceToken.grantRole(governanceToken.DEFAULT_ADMIN_ROLE(), address(timeLock));
-governanceToken.revokeRole(governanceToken.DEFAULT_ADMIN_ROLE(), deployer);
-vm.stopBroadcast();
+```bash
+make s_deployLocal
+make s_seedLocal
 ```
 
-Que hace este bloque:
+El primer comando despliega toda la infraestructura del protocolo y genera `deployments/anvil.json`.  
+El segundo comando completa el estado local con usuarios, guardianes, vaults, actividad económica, propuestas demo y `deployments/anvil-seed.json`.
 
-1. Le da `MINTER_ROLE` a `genesisBonding`.
-   Intencion:
-   `GenesisBonding.buy(...)` mintea governance token al comprador, por eso necesita permiso para mintear.
+## Deploy principal
 
-2. Le da `DEFAULT_ADMIN_ROLE` al `TimeLock`.
-   Intencion:
-   que la administracion futura del token quede bajo gobernanza/timelock y no en una wallet externa.
+El punto de entrada es `DeployInvestmentDao.run()`.
 
-3. Le quita `DEFAULT_ADMIN_ROLE` al deployer.
-   Intencion:
-   eliminar privilegios administrativos directos del deployer sobre el token una vez terminado el bootstrap.
+Responsabilidades de alto nivel:
+- cargar la configuración de red activa desde `HelperConfig`
+- desplegar mocks si la red es `31337`
+- desplegar contratos en orden resolviendo dependencias
+- aplicar configuraciones post-deploy
+- generar `deployments/<network>.json`
+- regenerar `contracts-sdk`
 
-Estado final esperado de esta parte:
-- `genesisBonding` puede mintear
-- `timeLock` administra el token
-- el deployer ya no es admin del token
+## Configuración de red
 
-### 6. DeployDaoGovernor
+`HelperConfig` soporta hoy:
+- `anvil`
+- `sepolia`
 
-Se ejecuta en [líneas 128-129](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol:128).
+En Anvil:
+- `allowedGenesisTokens[0]` inicia como placeholder
+- `allowedVaultToken` inicia como placeholder
+- `aavePool` inicia como placeholder
+- esos valores se reemplazan durante el deploy con mocks reales
 
-Script usado: [DeployDaoGovernor.s.sol](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployDaoGovernor.s.sol:10)
+En Sepolia:
+- se usa el token configurado en `HelperConfig`
+- se usa el pool real de Aave configurado allí
 
-Parametros:
-- `config`
-- `address(governanceToken)`
-- `address(timeLock)`
-- `deployer`
+## Flujo de deploy en Anvil
 
-Internamente se despliega `DaoGovernor` con:
-- `governanceToken`
-- `timelock`
-- `minProposalThreshold_ = 1000e18`
-- `minVotingDelay_ = 1`
-- `minVotingPeriod_ = 45818`
+Cuando `chainid == 31337`, `DeployInvestmentDao` ejecuta `DeployMocks.run()` antes del resto del despliegue.
 
-Resultado:
-- despliega el contrato de gobernanza principal del protocolo
+Eso produce:
+- `MockERC20`
+- `MockAavePool`
 
-### 7. DeployProtocolCore
+Y luego actualiza `networkConfig` con:
+- `allowedGenesisTokens[0] = mockERC20`
+- `allowedVaultToken = mockERC20`
+- `aavePool = mockAavePool`
 
-Se ejecuta en [líneas 131-132](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol:131).
+Esto garantiza que el resto del deploy use dependencias funcionales en local desde el inicio.
 
-Script usado: [DeployProtocolCore.s.sol](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployProtocolCore.s.sol:9)
+## Orden de despliegue
 
-Parametros:
-- `config`
-- `address(timeLock)`
-- `deployer`
-- `networkConfig.allowedGenesisTokens`
-- `networkConfig.allowedVaultToken`
-
-Internamente despliega:
-- implementación `ProtocolCore`
-- `ERC1967Proxy`
-
-Y llama `initialize(...)` con:
-- `adminTimelock = timeLock`
-- `emergencyOperator = deployer`
-- `allowedGenesisTokens`
-- `allowedVaultToken`
-
-Resultado:
-- `ProtocolCore` queda upgradeable
-- el `TimeLock` queda como admin/manager
-- el deployer queda como emergency operator
-- los `allowedGenesisTokens` quedan registrados
-- el `allowedVaultToken` queda marcado como vault asset soportado
-
-### 8. DeployRiskManager
-
-Se ejecuta en [líneas 134-135](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol:134).
-
-Script usado: [DeployRiskManager.s.sol](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployRiskManager.s.sol:9)
-
-Parametros:
-- `config`
-- `address(timeLock)`
-- `deployer`
-
-Resultado:
-- despliega implementación + proxy de `RiskManager`
-- `TimeLock` queda como manager/admin
-- deployer queda como emergency operator
-
-### 9. DeployGuardianAdministrator
-
-Se ejecuta en [líneas 137-138](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol:137).
-
-Script usado: [DeployGuardianAdministrator.s.sol](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployGuardianAdministrator.s.sol:9)
-
-Parametros:
-- `config`
-- `daoGovernor`
-- `address(timeLock)`
-- `deployer`
-
-Internamente se despliega con:
-- `governor_ = daoGovernor`
-- `timelock_ = timeLock`
-- `minStake_ = 100`
-
-Resultado:
-- despliega `GuardianAdministrator`
-- queda conectado a gobernanza y timelock
-- todavia no queda enlazado con `GuardianBondEscrow`; eso se configura despues por timelock
-
-### 10. DeployGuardianBondEscrow
-
-Se ejecuta en [líneas 140-148](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol:140).
-
-Script usado: [DeployGuardianBondEscrow.s.sol](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployGuardianBondEscrow.s.sol:9)
-
-Parametros:
-- `config`
-- `treasury`
-- `guardianAdministrator`
-- `address(timeLock)`
-- `networkConfig.allowedGenesisTokens[0]`
-- `deployer`
-
-Internamente se despliega con:
-- token de bond = `allowedGenesisTokens[0]`
-- treasury = `treasury`
-- adminTimelock = `timeLock`
-- guardianAdministrator = `guardianAdministrator`
-
-Resultado:
-- despliega `GuardianBondEscrow`
-- el escrow ya conoce que el `guardianAdministrator` es quien interactuara con bonds
-
-### 11. DeployVaultRegistry
-
-Se ejecuta en [líneas 150-151](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol:150).
-
-Script usado: [DeployVaultRegistry.s.sol](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployVaultRegistry.s.sol:8)
-
-Parametros:
-- `config`
-- `address(timeLock)`
-- `deployer`
-
-Resultado:
-- despliega `VaultRegistry`
-- el admin del registry queda bajo `TimeLock`
-- todavia no queda asociada la `VaultFactory`; eso se configura despues por timelock
-
-### 12. DeployStrategyRouter
-
-Se ejecuta en [líneas 153-155](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol:153).
-
-Script usado: [DeployStrategyRouter.s.sol](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployStrategyRouter.s.sol:10)
-
-Parametros:
-- `config`
-- `address(timeLock)`
-- `riskManager`
-- `address(vaultRegistry)`
-- `deployer`
-
-Internamente inicializa con:
-- `adminTimelock = timeLock`
-- `riskManager`
-- `vaultRegistry`
-
-Resultado:
-- despliega `StrategyRouter`
-- queda conectado al `RiskManager` y `VaultRegistry`
-
-### 13. DeployVaultImplementation
-
-Se ejecuta en [líneas 157-158](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol:157).
-
-Script usado: [DeployVaultImplementation.s.sol](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployVaultImplementation.s.sol:8)
-
-Parametros:
-- `config`
-- `deployer`
-
-Resultado:
-- despliega la implementación base del vault
-- esta implementación luego sera usada por la factory
-
-### 14. DeployVaultFactory
-
-Se ejecuta en [líneas 160-170](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol:160).
-
-Script usado: [DeployVaultFactory.s.sol](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployVaultFactory.s.sol:8)
-
-Parametros:
-- `config`
-- `address(timeLock)`
-- `vaultImplementation`
-- `guardianAdministrator`
-- `vaultRegistry`
-- `strategyRouter`
-- `protocolCore`
-- `deployer`
-
-Resultado:
-- despliega `VaultFactory`
-- queda conectada con la implementación, guardian admin, registry, router y core
-
-### 15. DeployAaveV3Adapter
-
-Se ejecuta en [líneas 172-173](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol:172).
-
-Script usado: [DeployAaveV3Adapter.s.sol](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployAaveV3Adapter.s.sol:8)
-
-Parametros:
-- `config`
-- `strategyRouter`
-- `networkConfig.aavePool`
-- `deployer`
-
-Resultado:
-- despliega el adapter de Aave
-- lo deja ligado al router y al pool configurado
-
-## Configuraciones posteriores al deploy
-
-Despues de desplegar todos los contratos, se ejecuta [\_configureProtocolDefaults(...)](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol:254).
-
-Actualmente hace dos configuraciones administrativas por timelock:
-
-1. `GuardianAdministrator.setBondEscrow(guardianBondEscrow)`
-2. `VaultRegistry.setFactory(vaultFactory)`
-
-Estas configuraciones usan [\_scheduleAndMaybeExecute(...)](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol:231).
-
-### Como funciona `_scheduleAndMaybeExecute(...)`
-
-Parametros:
-- `deployerPrivateKey`
-- `timeLock`
-- `target`
-- `data`
-- `salt`
-
-Flujo:
-
-1. construye `predecessor = bytes32(0)`
-2. consulta `minDelay = timeLock.getMinDelay()`
-3. hace `timeLock.schedule(...)`
-4. si `minDelay == 0`, hace `timeLock.execute(...)`
-5. si `minDelay > 0`, deja la operacion programada y la reporta por log
-
-Implicacion:
-- en Anvil, la configuración se agenda y ejecuta en la misma corrida
-- en una red con delay real, la configuracion queda programada y pendiente de ejecución posterior manual.
-
-## Ajuste final de admin del TimeLock
-
-En [líneas 184-187](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol:184) pasa esto:
-
-```solidity
-vm.startBroadcast(networkConfig.deployerPrivateKey);
-  timeLock.grantRole(timeLock.DEFAULT_ADMIN_ROLE(), daoGovernor);
-  timeLock.renounceRole(timeLock.DEFAULT_ADMIN_ROLE(), deployer);
-vm.stopBroadcast();
-```
-
-Que hace:
-
-1. le da `DEFAULT_ADMIN_ROLE` al `daoGovernor`
-2. el deployer renuncia a su `DEFAULT_ADMIN_ROLE`
-
-Intencion:
-- mover la administracion del timelock hacia la gobernanza
-- quitar privilegios directos del deployer al terminar el bootstrap
-
-Importante:
-- el propio timelock sigue siendo self-admin internamente por diseño de OZ
-- lo que se elimina es el admin externo temporal del deployer
-
-## Archivos generados y pasos finales
-
-Despues del deploy:
-
-### `generateDeploymentsJson(...)`
-
-Funciona en [líneas 279-326](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol:279)
-
-Hace esto:
-- crea carpeta `deployments` si no existe
-- construye `deployments/<network>.json`
-- serializa addresses clave del despliegue
-
-Campos importantes:
-- `aavePool`
-- `timeLock`
-- `governanceToken`
-- `treasury`
-- `daoGovernor`
-- `protocolCore`
-- `riskManager`
-- `guardianAdministrator`
-- `guardianBondEscrow`
-- `vaultRegistry`
-- `strategyRouter`
-- `vaultImplementation`
-- `genesisBonding`
-- `vaultFactory`
-- `aaveV3Adapter`
-
-### `createContractsSdkStructure()`
-
-Funciona en [líneas 328-346](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/deploy/DeployInvestmentDao.s.sol:328)
-
-Hace esto:
-- crea `contracts-sdk/src`
-- crea subcarpetas:
-  - `abi`
-  - `addresses`
-  - `helpers`
-
-Intencion:
-- dejar listo el terreno para generar y consumir el SDK de contratos
-
-## Resumen corto del orden de despliegue
-
-El orden final es:
+El orden actual en `deployContracts(...)` es este:
 
 1. `TimeLock`
 2. `GovernanceToken`
 3. `Treasury`
 4. `GenesisBonding`
-5. ajuste de roles de `GovernanceToken`
-6. `DaoGovernor`
-7. `ProtocolCore`
-8. `RiskManager`
-9. `GuardianAdministrator`
+5. `DaoGovernor`
+6. `ProtocolCore`
+7. `RiskManager`
+8. `GuardianAdministrator`
+9. bootstrap especial de `GovernanceToken` y `GuardianAdministrator`
 10. `GuardianBondEscrow`
 11. `VaultRegistry`
 12. `StrategyRouter`
 13. `VaultImplementation`
 14. `VaultFactory`
 15. `AaveV3Adapter`
-16. configuraciones post-deploy por timelock
-17. migracion de admin del timelock al governor
-18. escritura de `deployments/<network>.json`
-19. preparacion de carpetas del SDK
+16. configuración post-deploy vía `TimeLock`
+17. transferencia final del admin del `TimeLock` al `DaoGovernor`
 
----
+## Qué hace cada despliegue
 
-# SeedLocal Paso A Paso
+### 1. TimeLock
 
-El archivo [SeedLocal.s.sol](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/local/SeedLocal.s.sol:1) no despliega infraestructura. Su objetivo es dejar el protocolo local en un estado util para pruebas manuales, frontend o demos.
+Se despliega primero porque es la base administrativa del protocolo.
 
-Estado final que busca:
+Estado relevante:
+- en Anvil el `minDelay` es `0`
+- en redes no locales puede ser mayor
+- el deployer queda inicialmente con permisos suficientes para terminar el bootstrap
 
-1. un guardian activo
-2. dos inversionistas
-3. governance token comprado por esos actores
-4. un vault creado
-5. dos depositos dentro del vault
+### 2. GovernanceToken
 
-## Restriccion de red
+Se despliega con el deployer como admin inicial temporal.
 
-En [línea 30](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/local/SeedLocal.s.sol:30):
+Luego, durante el bootstrap:
+- se da `MINTER_ROLE` a `GenesisBonding`
+- se da `MINTER_ROLE` temporal al deployer
+- el deployer mintea al `GuardianAdministrator` exactamente `proposalThreshold()`
+- el deployer revoca su propio `MINTER_ROLE`
+- se entrega `DEFAULT_ADMIN_ROLE` al `TimeLock`
+- se revoca `DEFAULT_ADMIN_ROLE` al deployer
 
-```solidity
-require(block.chainid == 31337, "SeedLocal only supports Anvil");
-```
+La intención es:
+- permitir ventas de `GenesisBonding`
+- asegurar que `GuardianAdministrator` tenga poder de voto suficiente para proponer
+- dejar la administración final del token en manos del `TimeLock`
 
-Intención:
-- impedir uso accidental fuera de Anvil
-- este seed asume timelock con `minDelay = 0`
+### 3. Treasury
 
-## Carga de addresses desplegadas
+Se despliega apuntando al `TimeLock`.
 
-En [líneas 32-42](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/local/SeedLocal.s.sol:32) lee `deployments/anvil.json` y obtiene:
+Rol esperado:
+- custodiar activos del protocolo
+- quedar administrado por el flujo de gobernanza/timelock
 
-- `timeLock`
-- `guardianAdministrator`
-- `guardianBondEscrow`
-- `genesisBonding`
+### 4. GenesisBonding
+
+Se despliega con:
 - `governanceToken`
-- `vaultFactory`
+- `treasury`
+- lista inicial de `allowedGenesisTokens`
+- `rate = 100`
 
-Luego deriva `mockUsdc` consultando `GuardianBondEscrow.guardianApplicationToken()`.
+Después del bootstrap queda habilitado para mintear governance token porque recibe `MINTER_ROLE` sobre `GovernanceToken`.
 
-Intencion:
-- operar contra el deployment real mas reciente
+### 5. DaoGovernor
 
-## Creacion de participantes
+Se despliega conectado a:
+- `GovernanceToken`
+- `TimeLock`
 
-En [líneas 44-50](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/local/SeedLocal.s.sol:44) se crean tres cuentas deterministicas:
+Parámetros relevantes:
+- `proposalThreshold = 1000e18`
+- `votingDelay = 1`
+- `votingPeriod = 20` en Anvil
+- `votingPeriod = 45818` fuera de Anvil
 
-1. `guardian`
-2. `investor1`
-3. `investor2`
+Además, `DaoGovernor` hereda `GovernorStorage`, así que conserva propuestas on-chain y expone utilidades como `proposalCount()` y `proposalDetailsAt(...)`.
 
-Se usa `makeAddrAndKey(...)`, asi que las cuentas son repetibles entre corridas.
+### 6. ProtocolCore
 
-## Paso 1 del seed: dar ETH para gas
+Se despliega como implementación + `ERC1967Proxy`.
 
-En [líneas 56-58](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/local/SeedLocal.s.sol:56) se llama `\_fundAccount(...)`.
+Se inicializa con:
+- `adminTimelock = timeLock`
+- `emergencyOperator = deployer`
+- `allowedGenesisTokens`
+- `allowedVaultToken`
 
-Helper: [líneas 89-94](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/local/SeedLocal.s.sol:89)
+Resultado:
+- el token genesis configurado queda permitido desde el arranque
+- el asset de vault inicial queda soportado
 
-Que hace:
-- el deployer manda ETH a cada participante
+### 7. RiskManager
 
-Intencion:
-- permitir que esas cuentas paguen gas cuando ejecuten approvals, compras, aplicaciones y depositos
+Se despliega también como implementación + proxy.
 
-## Paso 2 del seed: mintear Mock USDC
+Queda enlazado al `TimeLock` para administración y al deployer como operador de emergencia inicial.
 
-En [líneas 60-62](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/local/SeedLocal.s.sol:60) se llama `\_mintUsdc(...)`.
+### 8. GuardianAdministrator
 
-Helper: [líneas 96-100](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/local/SeedLocal.s.sol:96)
+Se despliega con:
+- `DaoGovernor`
+- `TimeLock`
+- token de bond inicial
 
-Distribucion:
-- guardian: `GUARDIAN_BOND + GUARDIAN_GVT_BUY`
-- investor1: `INVESTOR1_GVT_BUY + INVESTOR1_DEPOSIT`
-- investor2: `INVESTOR2_GVT_BUY + INVESTOR2_DEPOSIT`
+Bootstrap adicional importante:
+- el deployer mintea a `GuardianAdministrator` el `proposalThreshold()` exacto
+- luego `GuardianAdministrator.selfDelegateGovernanceVotes(...)` se ejecuta
 
-Intencion:
-- cada cuenta recibe exactamente lo que necesita para su flujo
+Eso permite que el propio `GuardianAdministrator` pueda generar propuestas de onboarding de guardianes sin depender de una wallet externa.
 
-## Paso 3 del seed: compra de governance por el guardian
+### 9. GuardianBondEscrow
 
-En [línea 64](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/local/SeedLocal.s.sol:64) se llama `\_buyAndDelegateGuardianVotes(...)`.
+Se despliega con:
+- `treasury`
+- `guardianAdministrator`
+- `timeLock`
+- token de aplicación de guardianes
 
-Helper: [líneas 102-115](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/local/SeedLocal.s.sol:102)
+Después del deploy, `GuardianAdministrator` se enlaza con este contrato vía una operación del `TimeLock`.
 
-Que hace:
+### 10. VaultRegistry
 
-1. el guardian aprueba `GenesisBonding`
-2. el guardian compra governance token usando `mockUsdc`
-3. el guardian delega sus votos a `guardianAdministrator`
-4. el script avanza un bloque con `vm.roll(block.number + 1)`
+Se despliega como registro central de vaults.
 
-Intencion:
-- darle governance token al guardian
-- dejar la delegacion registrada para snapshots/checkpoints de gobernanza antes de avanzar
+Después del deploy, se configura su factory válida vía `TimeLock`.
 
-## Paso 4 del seed: activacion del guardian
+### 11. StrategyRouter
 
-En [líneas 65-72](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/local/SeedLocal.s.sol:65) se llama `\_activateGuardian(...)`.
+Se despliega como implementación + proxy.
 
-Helper: [líneas 117-145](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/local/SeedLocal.s.sol:117)
+Se inicializa con:
+- `TimeLock`
+- `RiskManager`
+- `VaultRegistry`
 
-### Fase A: aplicacion del guardian
+### 12. VaultImplementation
 
-En [líneas 125-128](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/local/SeedLocal.s.sol:125):
+Se despliega la implementación base de los vaults ERC4626 del protocolo.
 
-1. el guardian aprueba `guardianBondEscrow` para tomar el bond
-2. llama `GuardianAdministrator.applyGuardian()`
+### 13. VaultFactory
 
-Intencion:
-- iniciar el flujo formal de aplicacion
-- bloquear el bond requerido por el sistema
+Se despliega conectada a:
+- `TimeLock`
+- `VaultImplementation`
+- `GuardianAdministrator`
+- `VaultRegistry`
+- `StrategyRouter`
+- `ProtocolCore`
 
-### Fase B: aprobacion por timelock
+Esta factory es la encargada de crear nuevos vaults guardian-managed.
 
-En [líneas 130-143](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/local/SeedLocal.s.sol:130):
+### 14. AaveV3Adapter
 
-1. construye `salt`
-2. construye el calldata de `guardianApprove(guardian.addr)`
-3. hace `TimeLock.schedule(...)`
-4. hace `TimeLock.execute(...)`
+Se despliega conectado a:
+- `StrategyRouter`
+- `aavePool` de la red activa
 
-Intencion:
-- aprobar al guardian por la misma via administrativa que usaria el protocolo
+En Anvil usa `MockAavePool`.
 
-Importante:
-- este flujo esta pensado para local
-- depende de que `TimeLock.getMinDelay()` sea `0`
+## Configuración post-deploy
 
-## Paso 5 del seed: crear el vault
+`DeployInvestmentDao` configura dos defaults vía `TimeLock`:
 
-En [línea 74](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/local/SeedLocal.s.sol:74) se llama `\_createVault(...)`.
+1. `GuardianAdministrator.setBondEscrow(guardianBondEscrow)`
+2. `VaultRegistry.setFactory(vaultFactory)`
 
-Helper: [líneas 147-151](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/local/SeedLocal.s.sol:147)
+Esto se hace con `_scheduleAndMaybeExecute(...)`.
 
-Que hace:
-- el guardian crea un vault con:
-  - asset = `mockUsdc`
-  - name = `Seed Vault`
-  - symbol = `sVAULT`
+Comportamiento:
+- si `minDelay == 0`, se `schedule` y `execute` en el mismo deploy
+- si `minDelay > 0`, la operación queda programada y pendiente de ejecución posterior
 
-Intencion:
-- dejar al menos un vault funcional en el protocolo
+## Transferencia final del control del TimeLock
 
-## Paso 6 del seed: compra de governance por inversionistas
+Al final del deploy:
+- se da `DEFAULT_ADMIN_ROLE` del `TimeLock` al `DaoGovernor`
+- el deployer renuncia a ese admin
 
-En [líneas 75-76](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/local/SeedLocal.s.sol:75) se llama `\_buyGovernanceForInvestor(...)` para ambos inversionistas.
+Resultado esperado:
+- la autoridad de gobierno termina en el `DaoGovernor`
+- el deployer deja de tener control administrativo directo del `TimeLock`
 
-Helper: [líneas 153-163](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/local/SeedLocal.s.sol:153)
+## Archivos generados por el deploy
 
-Que hace:
+El deploy principal genera:
+- `deployments/<network>.json`
+- `contracts-sdk/src/abi/*`
+- `contracts-sdk/src/addresses/*`
+- `contracts-sdk/src/helpers/*`
 
-1. cada inversionista aprueba `GenesisBonding`
-2. cada inversionista compra governance token
+En Anvil, el archivo normal es:
+- [deployments/anvil.json](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/deployments/anvil.json)
 
-Intencion:
-- poblar el sistema con mas participantes de gobernanza
+Ese archivo contiene las direcciones base del protocolo y es la fuente que consume `SeedLocal`.
 
-## Paso 7 del seed: depositos en el vault
+## Seed local
 
-En [líneas 77-78](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/local/SeedLocal.s.sol:77) se llama `\_depositToVault(...)` para ambos inversionistas.
+El punto de entrada del seed es `SeedLocal.run()`.
 
-Helper: [líneas 165-169](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/script/local/SeedLocal.s.sol:165)
+Restricción importante:
+- solo corre en `chainid == 31337`
 
-Que hace:
+Objetivo:
+- dejar un entorno local rico y navegable para frontend y testing manual
 
-1. cada inversionista aprueba el vault
-2. llama `IERC4626(vault).deposit(amount, investor.addr)`
+## Qué hace el seed local
 
-Intencion:
-- dejar TVL real en el vault
-- emitir shares a los inversionistas
-- tener un estado util para frontend y pruebas manuales
+`SeedLocal` hoy hace todo esto:
 
-## Resumen corto del seed
+1. lee `deployments/anvil.json`
+2. deriva y construye participantes determinísticos
+3. fondea todas las cuentas con ETH
+4. otorga a `ADMIN_WALLET_ANVIL_PRIVATE_KEY` acceso amplio por roles
+5. otorga al `DaoGovernor` los roles necesarios del `TimeLock`
+6. despliega un segundo `MockERC20`
+7. registra ese segundo token como:
+   - genesis token permitido
+   - asset soportado para vaults
+   - token de compra válido en `GenesisBonding`
+8. mintea balances iniciales a guardianes e inversores
+9. activa tres guardianes reales
+10. crea tres vaults
+11. hace compras reales de governance token
+12. hace depósitos reales en vaults
+13. mintea governance token a actores de gobernanza demo
+14. delega votos a cada actor
+15. crea propuestas demo en múltiples estados
+16. valida on-chain el resultado
+17. imprime logs finales
+18. persiste `deployments/anvil-seed.json`
 
-El orden del seed es:
+## Participantes seeded
 
-1. leer addresses del deployment
-2. crear guardian e inversionistas
-3. darles ETH para gas
-4. mintear Mock USDC
-5. hacer que el guardian compre governance y delegue votos
-6. aplicar y aprobar al guardian
-7. crear un vault
-8. hacer que los inversionistas compren governance token
-9. depositar capital en el vault
-10. imprimir addresses utiles
+El seed crea estos grupos de actores:
 
-## Estado final esperado despues del seed
+### Guardianes
 
-Si todo sale bien, al terminar deberias tener:
+- `guardian1`
+- `guardian2`
+- `adminGuardian = vm.addr(ADMIN_WALLET_ANVIL_PRIVATE_KEY)`
 
-1. `guardian` activo
-2. `investor1` e `investor2` con governance token
-3. un `vault` creado
-4. dos depositos hechos en ese vault
-5. un entorno local listo para probar flujos reales del protocolo
+Estado final:
+- los tres quedan como guardianes activos
+- `adminGuardian` no recibe vaults
+
+### Inversores
+
+- `investor1`
+- `investor2`
+
+Estado final:
+- hacen compras en `GenesisBonding`
+- depositan en vaults
+
+### Actores de gobernanza demo
+
+- `proposerPending`
+- `proposerActive`
+- `proposerCanceled`
+- `proposerDefeated`
+- `proposerSucceeded`
+- `proposerQueued`
+- `proposerExecuted`
+- `voter1`
+- `voter2`
+- `voter3`
+
+Todos reciben governance token y hacen `delegate` a sí mismos.
+
+## Assets seeded
+
+El seed trabaja con dos tokens locales:
+
+- `primaryGenesisToken`
+  Es el token de aplicación de guardianes y el token inicial que ya venía del deploy.
+
+- `secondaryGenesisToken`
+  Es un nuevo `MockERC20` desplegado dentro del seed.
+
+Estado final esperado:
+- ambos están en `ProtocolCore.getSupportedGenesisTokens()`
+- ambos quedan soportados como vault assets
+- ambos quedan habilitados como purchase tokens de `GenesisBonding`
+
+## Guardianes y vaults seeded
+
+El seed deja:
+
+- `guardian1` activo con 2 vaults
+- `guardian2` activo con 1 vault
+- `adminGuardian` activo sin vault
+
+Distribución de vaults:
+- `guardian1` vault con asset primario
+- `guardian2` vault con asset primario
+- `guardian1` vault adicional con asset secundario
+
+Además, la wallet admin recibe roles administrativos sobre los vaults creados.
+
+## Actividad económica seeded
+
+El seed deja actividad visible para frontend:
+
+- `investor1` compra governance token con el token primario
+- `investor2` compra governance token con el token secundario
+- `investor1` deposita en el primer vault
+- `investor2` deposita en el segundo vault
+- `investor2` deposita en el vault del asset secundario
+
+Esto asegura que:
+- `GenesisBonding` quede probado con ambos assets
+- existan balances y movimiento real en los vaults
+
+## Roles extra seeded
+
+Además del acceso amplio para `ADMIN_WALLET_ANVIL_PRIVATE_KEY`, el seed también da al `DaoGovernor` estos roles en `TimeLock`:
+
+- `PROPOSER_ROLE`
+- `EXECUTOR_ROLE`
+- `CANCELLER_ROLE`
+
+Esto es importante para poder sembrar estados reales como `Queued` y `Executed` usando el governor.
+
+## Propuestas demo seeded
+
+El seed crea propuestas demo etiquetadas por estado:
+
+- `Pending`
+- `Active`
+- `Canceled`
+- `Defeated`
+- `Succeeded`
+- `Queued`
+- `Executed`
+
+No crea `Expired`, porque con la herencia actual del governor ese estado no se está usando como estado práctico del flujo local.
+
+Las propuestas usan una acción inocua e idempotente sobre `ProtocolCore`:
+- `setSupportedVaultAsset(secondaryToken, true)`
+
+La razón es simple:
+- no rompe el sistema
+- puede repetirse
+- permite recorrer el ciclo de gobernanza real
+
+## Validaciones incluidas en el seed
+
+Antes de terminar, `SeedLocal` valida on-chain con `require(...)`:
+
+- que existan 2 genesis tokens soportados
+- que existan 2 vault assets soportados
+- que los 3 guardianes estén activos
+- que `guardian1` tenga 2 vaults
+- que `guardian2` tenga 1 vault
+- que `adminGuardian` tenga 0 vaults
+- que los 3 vaults estén activos
+- que hubo compra de governance token usando el token secundario
+- que cada propuesta demo esté en el estado esperado
+- que el `proposalCount()` del governor haya aumentado exactamente en 7 propuestas demo
+
+## Logs y JSON del seed
+
+Al final del seed se imprimen logs con:
+- tokens
+- guardianes
+- vaults
+- proposal ids de aplicación de guardianes
+- proposal ids demo por estado
+- proposal count antes y después
+- state numérico final de cada proposal demo
+
+Además, solo en Anvil, se escribe:
+- [deployments/anvil-seed.json](/home/andres/Documentos/Solidity%20Projects/Dao-Investment-J-Y/deployments/anvil-seed.json)
+
+Ese JSON contiene:
+- `primaryGenesisToken`
+- `secondaryGenesisToken`
+- `supportedGenesisTokens`
+- `supportedVaultAssets`
+- `guardians`
+- `vaultsByGuardian`
+- `proposalIdsByState`
+- `guardianApplicationProposalIds`
+
+## Qué consume el frontend
+
+En local, el frontend puede apoyarse en dos archivos:
+
+- `deployments/anvil.json`
+  Direcciones base del protocolo.
+
+- `deployments/anvil-seed.json`
+  Estado seeded adicional útil para mostrar data rica desde el primer render.
+
+## Resumen práctico
+
+Si quieres un entorno local completo:
+
+1. corre `make s_deployLocal`
+2. corre `make s_seedLocal`
+3. usa `deployments/anvil.json` para direcciones base
+4. usa `deployments/anvil-seed.json` para data seeded adicional
+
+Con eso deberías tener:
+- protocolo desplegado
+- guardianes activos
+- vaults creados y activos
+- compras y depósitos reales
+- propuestas demo en varios estados
+- SDK regenerado

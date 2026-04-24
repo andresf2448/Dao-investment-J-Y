@@ -45,7 +45,7 @@ s_deployLocal:
 .PHONY: s_seedLocal
 
 s_seedLocal:
-	forge script script/local/SeedLocal.s.sol:SeedLocal --rpc-url http://127.0.0.1:8545 --broadcast --skip-simulation -vvvv
+	forge script script/local/SeedLocal.s.sol:SeedLocal --rpc-url http://127.0.0.1:8545 --broadcast --slow --skip-simulation -vvvv
 
 .PHONY: s_bootstrapLocal
 

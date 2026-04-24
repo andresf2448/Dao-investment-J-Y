@@ -15,7 +15,6 @@ contract Treasury is ReentrancyGuardTransient, AccessControl {
 
   bytes32 public constant SWEEP_NOT_ASSET_DAO_ROLE = keccak256('SWEEP_NOT_ASSET_DAO_ROLE');
   address public protocolCore;
-  mapping(address token => uint256 balance) public sweepBalanceTokens;
 
   event NativeReceived(address indexed sender, uint256 amount);
   event ERC20Withdrawn(
