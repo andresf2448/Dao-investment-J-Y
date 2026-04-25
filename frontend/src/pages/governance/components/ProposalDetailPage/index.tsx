@@ -16,10 +16,12 @@ export default function ProposalDetailPage() {
     proposal,
     capabilities,
     canVote,
+    canQueueProposal,
     canExecuteProposal,
     voteFor,
     voteAgainst,
     abstain,
+    queueProposal,
     executeProposal,
     isSubmitting,
   } = useProposalDetailModel(proposalId);
@@ -231,6 +233,15 @@ export default function ProposalDetailPage() {
                 disabled={!canVote}
               >
                 Abstain
+              </button>
+
+              <button
+                type="button"
+                className="btn-warning w-full disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={queueProposal}
+                disabled={!canQueueProposal}
+              >
+                Queue Proposal
               </button>
 
               <button

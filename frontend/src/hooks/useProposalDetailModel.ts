@@ -2,6 +2,7 @@ import {
   getDaoGovernorContract,
   getGovernanceTokenContract,
 } from "@dao/contracts-sdk";
+import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import Swal from "sweetalert2";
 import { useBlockNumber, useChainId, useConnection, useReadContracts } from "wagmi";
@@ -37,6 +38,7 @@ export function useProposalDetailModel(
     return resolveOptionalContract(chainId, getGovernanceTokenContract);
   }, [chainId]);
   const { executeWrite } = useWriteContracts();
+  const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const parsedProposalId = useMemo(() => {
@@ -198,6 +200,12 @@ export function useProposalDetailModel(
     },
     timeline: [
       {
+        label: "Current",
+        value: currentBlock
+          ? `Block ${currentBlock.toString()}`
+          : "Loading...",
+      },
+      {
         label: "Snapshot",
         value:
           proposalSnapshot > 0n
@@ -221,6 +229,10 @@ export function useProposalDetailModel(
     !isSubmitting;
   const canExecuteProposal =
     proposal.status === "Queued" &&
+    parsedProposalId !== undefined &&
+    !isSubmitting;
+  const canQueueProposal =
+    proposal.status === "Succeeded" &&
     parsedProposalId !== undefined &&
     !isSubmitting;
 
@@ -251,7 +263,7 @@ export function useProposalDetailModel(
 
   const submitGovernanceAction = async (
     title: string,
-    action: "for" | "against" | "abstain" | "execute",
+    action: "for" | "against" | "abstain" | "execute" | "queue",
   ) => {
     if (!parsedProposalId) {
       await Swal.fire({
@@ -286,9 +298,14 @@ export function useProposalDetailModel(
     try {
       const response = await executeWrite({
         functionContract: "getDaoGovernorContract",
-        functionName: action === "execute" ? "execute" : "castVote",
-        args:
+        functionName:
           action === "execute"
+            ? "execute"
+            : action === "queue"
+              ? "queue"
+              : "castVote",
+        args:
+          action === "execute" || action === "queue"
             ? [parsedProposalId]
             : [
                 parsedProposalId,
@@ -303,21 +320,31 @@ export function useProposalDetailModel(
         throw new Error(
           action === "execute"
             ? "The proposal execution did not complete successfully."
-            : "The vote transaction did not complete successfully.",
+            : action === "queue"
+              ? "The proposal queueing did not complete successfully."
+              : "The vote transaction did not complete successfully.",
         );
       }
 
       Swal.close();
 
+      if (action === "queue" || action === "execute") {
+        queryClient.invalidateQueries();
+      }
+
       await Swal.fire({
         title:
           action === "execute"
             ? "Proposal executed"
-            : "Vote submitted",
+            : action === "queue"
+              ? "Proposal queued"
+              : "Vote submitted",
         text:
           action === "execute"
             ? "The proposal execution was submitted successfully."
-            : "Your vote was cast successfully.",
+            : action === "queue"
+              ? "The proposal has been queued to the timelock."
+              : "Your vote was cast successfully.",
         icon: "success",
         confirmButtonText: "OK",
       });
@@ -343,10 +370,12 @@ export function useProposalDetailModel(
     proposal,
     capabilities,
     canVote,
+    canQueueProposal,
     canExecuteProposal,
     voteFor: () => confirmVoteAction("Vote For", "for"),
     voteAgainst: () => confirmVoteAction("Vote Against", "against"),
     abstain: () => confirmVoteAction("Abstain", "abstain"),
+    queueProposal: () => submitGovernanceAction("Queueing proposal", "queue"),
     executeProposal: () => submitGovernanceAction("Executing proposal", "execute"),
     isSubmitting,
   };

@@ -35,6 +35,10 @@
     @apply border border-border text-text-primary px-4 py-2 rounded-lg font-medium hover:bg-gray-50 transition-colors;
   }
 
+  .btn-warning {
+    @apply bg-yellow-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-yellow-600 transition-colors;
+  }
+
   .badge-success {
     @apply text-xs px-3 py-1 rounded-full bg-green-100 text-green-700 font-medium;
   }
@@ -45,6 +49,10 @@
 
   .badge-danger {
     @apply text-xs px-3 py-1 rounded-full bg-red-100 text-red-700 font-medium;
+  }
+
+  .badge-orange {
+    @apply text-xs px-3 py-1 rounded-full bg-orange-100 text-orange-700 font-medium;
   }
 }
 
