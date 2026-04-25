@@ -7,3 +7,4 @@ export * from "./abiERC20";
 export * from "./transactionErrors";
 export * from "./truncateMiddle";
 export * from "./blockTime";
+export * from "./proposalMetadata";

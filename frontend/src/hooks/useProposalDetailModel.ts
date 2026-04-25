@@ -1,7 +1,10 @@
-import { getDaoGovernorContract } from "@dao/contracts-sdk";
+import {
+  getDaoGovernorContract,
+  getGovernanceTokenContract,
+} from "@dao/contracts-sdk";
 import { useMemo, useState } from "react";
 import Swal from "sweetalert2";
-import { useBlockNumber, useChainId, useReadContracts } from "wagmi";
+import { useBlockNumber, useChainId, useConnection, useReadContracts } from "wagmi";
 import type {
   ProposalDetailData,
   ProposalDetailModel,
@@ -11,6 +14,7 @@ import {
   formatEstimatedBlockDate,
   formatTokenAmount,
   getTransactionError,
+  loadProposalMetadata,
 } from "@/utils";
 import { getReadContractResult } from "./shared/contractResults";
 import { mapGovernorProposalState } from "./shared/governance";
@@ -21,12 +25,16 @@ export function useProposalDetailModel(
   proposalId?: string,
 ): ProposalDetailModel {
   const chainId = useChainId();
+  const connection = useConnection();
   const capabilities = useProtocolCapabilities();
   const { data: currentBlock } = useBlockNumber({
     watch: true,
   });
   const governorConfig = useMemo(() => {
     return resolveOptionalContract(chainId, getDaoGovernorContract);
+  }, [chainId]);
+  const governanceTokenConfig = useMemo(() => {
+    return resolveOptionalContract(chainId, getGovernanceTokenContract);
   }, [chainId]);
   const { executeWrite } = useWriteContracts();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -91,6 +99,24 @@ export function useProposalDetailModel(
     },
   });
 
+  const { data: userVotingPowerData } = useReadContracts({
+    allowFailure: true,
+    contracts:
+      governanceTokenConfig && connection.address
+        ? [
+            {
+              abi: governanceTokenConfig.abi,
+              address: governanceTokenConfig.address,
+              functionName: "getVotes" as const,
+              args: [connection.address],
+            },
+          ]
+        : [],
+    query: {
+      enabled: Boolean(governanceTokenConfig && connection.address),
+    },
+  });
+
   const proposalState = mapGovernorProposalState(
     getReadContractResult<number | bigint>(proposalData?.[0]),
   );
@@ -124,22 +150,32 @@ export function useProposalDetailModel(
     }));
   }, [proposalDetails]);
 
+  const proposalMetadata = useMemo(
+    () => loadProposalMetadata(chainId, proposalId),
+    [chainId, proposalId],
+  );
+
   const proposalTitle = useMemo(() => {
+    if (proposalMetadata?.title?.trim()) {
+      return proposalMetadata.title.trim();
+    }
+
     const actionCount = proposalActions.length;
 
     return actionCount > 0
       ? `Governance proposal with ${actionCount} action${actionCount === 1 ? "" : "s"}`
       : proposalId
-        ? `Governance proposal ${proposalId}`
-        : "Governance proposal";
-  }, [proposalActions.length, proposalId]);
+      ? `Governance proposal ${proposalId}`
+      : "Governance proposal";
+  }, [proposalActions.length, proposalId, proposalMetadata?.title]);
 
   const proposal: ProposalDetailData = {
     id: proposalId ?? "P-101",
     title: proposalTitle,
     status: proposalState,
     description:
-      "Proposal details are loaded directly from the governor contract for this proposal id.",
+      proposalMetadata?.description?.trim() ||
+      "Proposal metadata was not cached by this frontend for this proposal. The governor stores the action payload and description hash onchain, so proposals created elsewhere may not expose the original text here.",
     proposer: proposalProposer,
     executionEta:
       proposalState === "Queued" && proposalDeadline > 0n
@@ -151,9 +187,13 @@ export function useProposalDetailModel(
         : proposalDeadline > 0n
           ? `Block ${proposalDeadline.toString()}`
           : "Unavailable",
+    delegatedVotes: formatTokenAmount(
+      getReadContractResult<bigint>(userVotingPowerData?.[0]) ?? 0n,
+      "GOV",
+    ),
     votes: {
-      forVotes: formatTokenAmount(voteBreakdown[0], "GOV"),
-      againstVotes: formatTokenAmount(voteBreakdown[1], "GOV"),
+      againstVotes: formatTokenAmount(voteBreakdown[0], "GOV"),
+      forVotes: formatTokenAmount(voteBreakdown[1], "GOV"),
       abstainVotes: formatTokenAmount(voteBreakdown[2], "GOV"),
     },
     timeline: [
@@ -252,7 +292,7 @@ export function useProposalDetailModel(
             ? [parsedProposalId]
             : [
                 parsedProposalId,
-                action === "for" ? 1 : action === "against" ? 0 : 2,
+                action === "for" ? 0 : action === "against" ? 1 : 2,
               ],
         options: {
           waitForReceipt: true,

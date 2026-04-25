@@ -29,6 +29,7 @@ export interface ProposalComposerModel {
   canDelegateVotes: boolean;
   isDelegatingVotes: boolean;
   delegateVotes: () => Promise<void>;
+  submitProposal: () => Promise<void>;
   canSubmitProposal: boolean;
   isSubmitting: boolean;
   capabilities: ProtocolCapabilities;

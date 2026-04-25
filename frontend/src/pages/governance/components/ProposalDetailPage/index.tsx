@@ -93,12 +93,39 @@ export default function ProposalDetailPage() {
       <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
         <div className="min-w-0 space-y-6">
           <div className="card">
-            <div className="card-header">Proposal Description</div>
+            <div className="card-header">Proposal Metadata</div>
 
-            <div className="card-content">
-              <p className="text-sm leading-7 text-text-secondary">
-                {proposal.description}
-              </p>
+            <div className="card-content space-y-6">
+              <div>
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-sm font-medium text-text-secondary">
+                    Title
+                  </p>
+                  <CopyValueButton value={proposal.title} label="Copy Title" />
+                </div>
+                <div className="mt-2 rounded-2xl border border-border bg-gray-50 px-4 py-4">
+                  <p className="text-sm font-medium leading-7 text-text-primary">
+                    {proposal.title}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-sm font-medium text-text-secondary">
+                    Description
+                  </p>
+                  <CopyValueButton
+                    value={proposal.description}
+                    label="Copy Description"
+                  />
+                </div>
+                <div className="mt-2 rounded-2xl border border-border bg-gray-50 px-4 py-4">
+                  <p className="whitespace-pre-wrap text-sm leading-7 text-text-secondary">
+                    {proposal.description}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -128,6 +155,34 @@ export default function ProposalDetailPage() {
                   No actions available for this proposal.
                 </p>
               )}
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-header">Delegated Votes Ready</div>
+
+            <div className="card-content">
+              <div className="rounded-2xl border border-border bg-gray-50 px-4 py-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-text-secondary">
+                      Voting power delegated to the connected wallet
+                    </p>
+                    <p className="mt-3 text-3xl font-semibold leading-tight text-text-primary">
+                      {proposal.delegatedVotes}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-blue-50 p-2 text-primary">
+                    <Vote className="h-5 w-5" />
+                  </div>
+                </div>
+
+                <p className="mt-4 text-sm leading-6 text-text-secondary">
+                  These are the governance votes currently ready to be cast from
+                  the wallet connected to this session.
+                </p>
+              </div>
             </div>
           </div>
         </div>

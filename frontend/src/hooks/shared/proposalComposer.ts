@@ -26,6 +26,5 @@ export function isValidProposalExecutionValue(value: string): boolean {
     return false;
   }
 
-  const numericValue = Number(normalized);
-  return Number.isFinite(numericValue) && numericValue >= 0;
+  return /^\d+$/.test(normalized);
 }

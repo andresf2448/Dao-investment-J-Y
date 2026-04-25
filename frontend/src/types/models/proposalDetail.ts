@@ -7,7 +7,8 @@ export type ProposalDetailStatus =
   | "Defeated"
   | "Queued"
   | "Executed"
-  | "Canceled";
+  | "Canceled"
+  | "Expired";
 
 export interface ProposalVoteBreakdown {
   forVotes: string;
@@ -33,6 +34,7 @@ export interface ProposalDetailData {
   description: string;
   proposer: string;
   executionEta: string;
+  delegatedVotes: string;
   votes: ProposalVoteBreakdown;
   timeline: ProposalTimelineItem[];
   actions: ProposalDetailAction[];

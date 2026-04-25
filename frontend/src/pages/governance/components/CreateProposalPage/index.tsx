@@ -21,6 +21,7 @@ export default function CreateProposalPage() {
     canDelegateVotes,
     isDelegatingVotes,
     delegateVotes,
+    submitProposal,
     canSubmitProposal,
     isSubmitting,
   } = useProposalComposerModel();
@@ -42,7 +43,7 @@ export default function CreateProposalPage() {
         </p>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <HeroMetric label="Voting Power" value={votingPower} />
+          <HeroMetric label="Delegated Voting Power" value={votingPower} />
           <HeroMetric label="Proposal Threshold" value={proposalThreshold} />
           <HeroMetric
             label="Eligibility"
@@ -164,9 +165,9 @@ export default function CreateProposalPage() {
                         className="mt-2 w-full rounded-xl border border-border px-4 py-3 text-sm"
                       />
                       {action.value.trim() !== "" &&
-                      !(Number.isFinite(Number(action.value)) && Number(action.value) >= 0) ? (
+                      !/^\d+$/.test(action.value.trim()) ? (
                         <p className="mt-2 text-sm text-danger">
-                          Execution value must be numeric and 0 or greater.
+                          Execution value must be a whole number and 0 or greater.
                         </p>
                       ) : null}
                     </div>
@@ -198,6 +199,26 @@ export default function CreateProposalPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+          <div className="card">
+            <div className="card-header">Submission</div>
+
+            <div className="card-content space-y-4">
+              <p className="text-sm leading-7 text-text-secondary">
+                Proposal submission will package the target contracts, execution
+                values, calldata actions and description into a governed
+                onchain proposal.
+              </p>
+
+              <button
+                type="button"
+                onClick={submitProposal}
+                className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!canSubmitProposal}
+              >
+                {isSubmitting ? "Submitting..." : "Submit Proposal"}
+              </button>
             </div>
           </div>
         </div>
@@ -242,7 +263,7 @@ export default function CreateProposalPage() {
             <div className="card-header">Submission Eligibility</div>
 
             <div className="card-content space-y-4">
-              <InfoRow label="Voting Power" value={votingPower} />
+              <InfoRow label="Delegated Voting Power" value={votingPower} />
               <InfoRow label="Threshold" value={proposalThreshold} />
               <InfoRow
                 label="Status"
@@ -277,24 +298,6 @@ export default function CreateProposalPage() {
             </div>
           </div>
 
-          <div className="card">
-            <div className="card-header">Submission</div>
-
-            <div className="card-content space-y-4">
-              <p className="text-sm leading-7 text-text-secondary">
-                Proposal submission will package the target contracts, execution
-                values, calldata actions and description into a governed
-                onchain proposal.
-              </p>
-
-              <button
-                className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!canSubmitProposal}
-              >
-                {isSubmitting ? "Submitting..." : "Submit Proposal"}
-              </button>
-            </div>
-          </div>
         </div>
       </section>
     </div>

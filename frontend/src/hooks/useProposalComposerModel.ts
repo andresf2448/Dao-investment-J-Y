@@ -1,12 +1,24 @@
-import { useState } from "react";
-import { useConnection } from "wagmi";
+import {
+  getDaoGovernorContract,
+  getGovernanceTokenContract,
+} from "@dao/contracts-sdk";
+import { useMemo, useState } from "react";
+import { useChainId, useConnection, useReadContracts } from "wagmi";
 import type { Address } from "viem";
 import Swal from "sweetalert2";
+import { parseEventLogs } from "viem";
 import type {
   ProposalComposerModel,
 } from "@/types/models/proposalComposer";
 import { useProtocolCapabilities } from "./useProtocolCapabilities";
-import { getTransactionError, isValidAddress } from "@/utils";
+import { getReadContractResult } from "./shared/contractResults";
+import { resolveOptionalContract } from "./shared/resolveContract";
+import {
+  formatTokenAmount,
+  getTransactionError,
+  isValidAddress,
+  saveProposalMetadata,
+} from "@/utils";
 import useWriteContracts from "./useWriteContracts";
 import {
   createEmptyProposalAction,
@@ -15,21 +27,67 @@ import {
 } from "./shared/proposalComposer";
 
 export function useProposalComposerModel(): ProposalComposerModel {
+  const chainId = useChainId();
   const capabilities = useProtocolCapabilities();
   const connection = useConnection();
   const { executeWrite } = useWriteContracts();
+  const governorConfig = useMemo(() => {
+    return resolveOptionalContract(chainId, getDaoGovernorContract);
+  }, [chainId]);
+  const governanceTokenConfig = useMemo(() => {
+    return resolveOptionalContract(chainId, getGovernanceTokenContract);
+  }, [chainId]);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [actions, setActions] = useState([createEmptyProposalAction()]);
   const [delegateAddress, setDelegateAddress] = useState("");
 
-  const [isSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDelegatingVotes, setIsDelegatingVotes] = useState(false);
 
-  const votingPower = "0 GOV";
-  const proposalThreshold = "4%";
-  const meetsThreshold = capabilities.canCreateProposal;
+  const { data: thresholdData } = useReadContracts({
+    allowFailure: true,
+    contracts: governorConfig
+      ? [
+          {
+            abi: governorConfig.abi,
+            address: governorConfig.address,
+            functionName: "proposalThreshold" as const,
+          },
+        ]
+      : [],
+    query: {
+      enabled: Boolean(governorConfig),
+    },
+  });
+
+  const { data: votingPowerData } = useReadContracts({
+    allowFailure: true,
+    contracts:
+      governanceTokenConfig && connection.address
+        ? [
+            {
+              abi: governanceTokenConfig.abi,
+              address: governanceTokenConfig.address,
+              functionName: "getVotes" as const,
+              args: [connection.address],
+            },
+          ]
+        : [],
+    query: {
+      enabled: Boolean(governanceTokenConfig && connection.address),
+    },
+  });
+
+  const votingPowerValue =
+    getReadContractResult<bigint>(votingPowerData?.[0]) ?? 0n;
+  const proposalThresholdValue =
+    getReadContractResult<bigint>(thresholdData?.[0]) ?? 0n;
+
+  const votingPower = formatTokenAmount(votingPowerValue, "GOV");
+  const proposalThreshold = formatTokenAmount(proposalThresholdValue, "GOV");
+  const meetsThreshold = votingPowerValue >= proposalThresholdValue;
   const normalizedDelegateAddress = delegateAddress.trim();
   const isDelegateAddressValid =
     normalizedDelegateAddress !== "" &&
@@ -52,7 +110,8 @@ export function useProposalComposerModel(): ProposalComposerModel {
     );
   });
   const canSubmitProposal =
-    capabilities.canCreateProposal &&
+    Boolean(connection.address) &&
+    meetsThreshold &&
     isTitleValid &&
     isDescriptionValid &&
     actions.length > 0 &&
@@ -138,25 +197,112 @@ export function useProposalComposerModel(): ProposalComposerModel {
     }
   };
 
-  // TODO:
-  // proposalThreshold -> DaoGovernor.proposalThreshold()
-  // votingPower -> Governance token / IVotes.getVotes(user, blockNumber)
-  // meetsThreshold -> comparación real votingPower >= proposalThreshold
-  //
-  // submit final:
-  // targets = actions.map(a => a.target)
-  // values = actions.map(a => a.value)
-  // calldatas = actions.map(a => a.calldata)
-  // description = texto final de propuesta
-  //
-  // write:
-  // DaoGovernor.propose(targets, values, calldatas, description)
-  //
-  // agregar validaciones reales:
-  // - target address válido
-  // - calldata válido
-  // - arrays no vacíos
-  // - description obligatoria
+  const submitProposal = async () => {
+    if (!canSubmitProposal || isSubmitting) {
+      return;
+    }
+
+    const confirmation = await Swal.fire({
+      title: "Submit proposal",
+      text: "Confirm the proposal submission transaction in your wallet.",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Yes, submit",
+      cancelButtonText: "Cancel",
+      reverseButtons: true,
+    });
+
+    if (!confirmation.isConfirmed) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    Swal.fire({
+      title: "Submitting proposal",
+      text: "Confirm the proposal submission transaction in your wallet.",
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
+
+    const targets = actions.map((action) => action.target.trim() as Address);
+    const values = actions.map((action) => BigInt(action.value.trim()));
+    const calldatas = actions.map(
+      (action) => action.calldata.trim() as `0x${string}`,
+    );
+    const proposalDescription = [title.trim(), description.trim()]
+      .filter(Boolean)
+      .join("\n\n");
+
+    try {
+      const response = await executeWrite({
+        functionContract: "getDaoGovernorContract",
+        functionName: "propose",
+        args: [targets, values, calldatas, proposalDescription],
+        options: {
+          waitForReceipt: true,
+        },
+      });
+
+      if (response?.receipt?.status !== "success") {
+        throw new Error("Proposal submission failed.");
+      }
+
+      const proposalCreatedEvent = governorConfig
+        ? parseEventLogs({
+            abi: governorConfig.abi,
+            logs: response.receipt?.logs ?? [],
+            eventName: "ProposalCreated",
+          })?.[0]
+        : undefined;
+      const proposalId = proposalCreatedEvent?.args?.proposalId?.toString();
+      const submittedTitle = title.trim();
+      const submittedDescription = description.trim();
+      const composedDescription = [submittedTitle, submittedDescription]
+        .filter(Boolean)
+        .join("\n\n");
+
+      if (proposalId) {
+        saveProposalMetadata(chainId, {
+          proposalId,
+          title: submittedTitle,
+          description: submittedDescription,
+          composedDescription,
+        });
+      }
+
+      setTitle("");
+      setDescription("");
+      setActions([createEmptyProposalAction()]);
+      Swal.close();
+
+      await Swal.fire({
+        title: "Proposal submitted",
+        text: "Your governance proposal was sent successfully.",
+        icon: "success",
+        confirmButtonText: "OK",
+      });
+    } catch (error) {
+      const transactionError = getTransactionError(error);
+
+      Swal.hideLoading();
+      Swal.update({
+        title: transactionError.title,
+        text: transactionError.message,
+        icon: "error",
+        showConfirmButton: true,
+        confirmButtonText: "OK",
+        allowOutsideClick: true,
+        allowEscapeKey: true,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return {
     title,
@@ -176,6 +322,7 @@ export function useProposalComposerModel(): ProposalComposerModel {
     canDelegateVotes,
     isDelegatingVotes,
     delegateVotes,
+    submitProposal,
     canSubmitProposal,
     isSubmitting,
     capabilities,
