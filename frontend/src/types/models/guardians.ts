@@ -6,5 +6,6 @@ export interface GuardiansModel {
   metrics: GuardianMetrics;
   capabilities: ProtocolCapabilities;
   isSubmitting: boolean;
+  hasPendingApplication: boolean;
   applicationGuardian: () => Promise<void>;
 }

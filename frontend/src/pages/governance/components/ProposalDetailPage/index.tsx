@@ -145,9 +145,40 @@ export default function ProposalDetailPage() {
                   </p>
 
                   <div className="mt-3 space-y-2">
-                    <InfoRow label="Target" value={action.target} />
-                    <InfoRow label="Value" value={action.value} />
-                    <InfoRow label="Calldata" value={action.calldata} />
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm text-text-secondary">Target</p>
+                        <CopyValueButton value={action.target} label="Copy" />
+                      </div>
+                      <div className="mt-1 rounded-lg border border-border bg-white px-3 py-2">
+                        <p className="truncate text-sm font-medium text-text-primary">
+                          {action.target}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm text-text-secondary">Value</p>
+                      </div>
+                      <div className="mt-1 rounded-lg border border-border bg-white px-3 py-2">
+                        <p className="text-sm font-medium text-text-primary">
+                          {action.value}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm text-text-secondary">Calldata</p>
+                        <CopyValueButton value={action.calldata} label="Copy" />
+                      </div>
+                      <div className="mt-1 rounded-lg border border-border bg-white px-3 py-2">
+                        <p className="truncate text-sm font-mono text-text-primary">
+                          {action.calldata}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}

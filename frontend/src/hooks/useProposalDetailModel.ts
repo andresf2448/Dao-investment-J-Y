@@ -309,7 +309,7 @@ export function useProposalDetailModel(
             ? [parsedProposalId]
             : [
                 parsedProposalId,
-                action === "for" ? 0 : action === "against" ? 1 : 2,
+                action === "for" ? 1 : action === "against" ? 0 : 2,
               ],
         options: {
           waitForReceipt: true,
@@ -328,7 +328,7 @@ export function useProposalDetailModel(
 
       Swal.close();
 
-      if (action === "queue" || action === "execute") {
+      if (action === "queue" || action === "execute" || action === "for" || action === "against" || action === "abstain") {
         queryClient.invalidateQueries();
       }
 

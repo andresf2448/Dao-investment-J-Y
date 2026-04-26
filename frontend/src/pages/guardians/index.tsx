@@ -18,6 +18,7 @@ export default function GuardiansPage() {
     metrics,
     capabilities,
     isSubmitting,
+    hasPendingApplication,
     applicationGuardian
   } = useGuardiansModel();
 
@@ -85,7 +86,7 @@ export default function GuardiansPage() {
               </ul>
             </div>
 
-            {capabilities.canApplyAsGuardian ? (
+            {capabilities.canApplyAsGuardian && !hasPendingApplication ? (
               <button
                 className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={isSubmitting}

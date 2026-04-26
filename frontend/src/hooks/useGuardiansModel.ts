@@ -183,6 +183,9 @@ export function useGuardiansModel(): GuardiansModel {
     canOperate: guardianDetail?.status === GuardianContractStatus.Active,
   };
 
+  const hasPendingApplication = guardianDetail?.status === GuardianContractStatus.Pending ||
+    guardianDetail?.status === GuardianContractStatus.Active;
+
   const metrics: GuardianMetrics = {
     activeGuardians: totalActiveGuardians ? Number(totalActiveGuardians) : 0,
     // TODO: pendingApplications -> graph o indexación de propuestas pendientes tipo guardian
@@ -376,6 +379,7 @@ export function useGuardiansModel(): GuardiansModel {
     metrics,
     capabilities,
     isSubmitting,
+    hasPendingApplication,
     applicationGuardian,
   };
 }
