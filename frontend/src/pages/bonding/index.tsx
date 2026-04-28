@@ -15,6 +15,12 @@ export default function BondingPage() {
     state,
     position,
     createTransaction,
+    hasSweepRole,
+    sweepToken,
+    setSweepToken,
+    sweepTokenError,
+    canSweep,
+    sweep,
   } = useBondingModel();
 
   return (
@@ -129,6 +135,41 @@ export default function BondingPage() {
           </div>
         </div>
       </section>
+
+      {hasSweepRole ? (
+        <section className="card">
+          <div className="card-header">Sweep Tokens</div>
+
+          <div className="card-content space-y-5">
+            <p className="text-sm text-text-secondary">
+              Sweep unsupported ERC20 tokens from the bonding contract to the treasury.
+            </p>
+
+            <div>
+              <label className="text-sm text-text-secondary">Token Address</label>
+              <input
+                type="text"
+                placeholder="0x..."
+                value={sweepToken}
+                onChange={(e) => setSweepToken(e.target.value)}
+                disabled={isSubmitting}
+                className="mt-2 w-full rounded-xl border border-border px-4 py-3 text-sm"
+              />
+              {sweepTokenError ? (
+                <p className="mt-2 text-sm text-danger">{sweepTokenError}</p>
+              ) : null}
+            </div>
+
+            <button
+              className="btn-secondary w-full disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!canSweep}
+              onClick={sweep}
+            >
+              {isSubmitting ? "Processing Sweep..." : "Sweep Token"}
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <section className="card">
         <div className="card-header">How Bonding Works</div>

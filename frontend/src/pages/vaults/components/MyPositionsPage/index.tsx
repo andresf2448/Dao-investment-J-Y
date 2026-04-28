@@ -1,7 +1,8 @@
 import { ArrowRight, BriefcaseBusiness, Coins, Wallet } from "lucide-react";
-import { useMyVaultPositionsModel } from "@/hooks/useMyVaultPositionsModel";
 import { Link } from "react-router-dom";
+import { useMyVaultPositionsModel } from "@/hooks/useMyVaultPositionsModel";
 import { EmptyState, HeroMetric, MetricCard } from "@/components/shared";
+import { formatAddress } from "@/utils";
 
 export default function MyPositionsPage() {
   const { positions, totalDepositedValue, totalShareExposure } =
@@ -94,7 +95,7 @@ export default function MyPositionsPage() {
                     className="border-b border-border"
                   >
                     <td className="px-6 py-4 text-sm font-medium text-text-primary">
-                      {position.vaultAddress}
+                      {formatAddress(position.vaultAddress)}
                     </td>
                     <td className="px-6 py-4 text-sm text-text-secondary">
                       {position.asset}

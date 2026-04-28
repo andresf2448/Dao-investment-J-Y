@@ -9,6 +9,7 @@ export interface VaultDetailData {
   status: VaultDetailStatus;
   registeredAt: string;
   decimals: number;
+  totalAssets: string;
 }
 
 export interface VaultDetailPosition {
@@ -28,4 +29,14 @@ export interface VaultDetailModel {
   position: VaultDetailPosition;
   controls: VaultDetailControls;
   capabilities: ProtocolCapabilities;
+  isSubmitting: boolean;
+  depositAssetBalance: string;
+  hasDepositAssetBalance: boolean;
+  isVaultGuardian: boolean;
+  canShowGuardianOperations: boolean;
+  deposit: (amount: string) => Promise<boolean>;
+  mint: (amount: string) => Promise<boolean>;
+  withdraw: (amount: string) => Promise<boolean>;
+  redeem: (amount: string) => Promise<boolean>;
+  executeStrategy: () => Promise<boolean>;
 }

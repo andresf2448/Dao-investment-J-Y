@@ -71,6 +71,11 @@ export function useProtocolCapabilities(): ProtocolCapabilities {
               address: genesisBondingConfig.address,
               functionName: "isFinalized" as const,
             },
+            {
+              abi: genesisBondingConfig.abi,
+              address: genesisBondingConfig.address,
+              functionName: "SWEEP_ROLE" as const,
+            },
           ]
         : []),
       ...(protocolCoreConfig
@@ -159,6 +164,9 @@ export function useProtocolCapabilities(): ProtocolCapabilities {
   const isBondingFinalized = genesisBondingConfig
     ? getReadContractResult<boolean>(globalProtocolData?.[globalIndex++]) ?? false
     : false;
+  const bondingSweepRole = genesisBondingConfig
+    ? getReadContractResult<`0x${string}`>(globalProtocolData?.[globalIndex++])
+    : undefined;
   const isVaultCreationPaused = protocolCoreConfig
     ? getReadContractResult<boolean>(globalProtocolData?.[globalIndex++]) ?? false
     : false;
@@ -215,6 +223,16 @@ export function useProtocolCapabilities(): ProtocolCapabilities {
                     address: governanceTokenConfig.address,
                     functionName: "getVotes" as const,
                     args: [address as Address],
+                  },
+                ]
+              : []),
+            ...(genesisBondingConfig && bondingSweepRole
+              ? [
+                  {
+                    abi: genesisBondingConfig.abi,
+                    address: genesisBondingConfig.address,
+                    functionName: "hasRole" as const,
+                    args: [bondingSweepRole, address as Address],
                   },
                 ]
               : []),
@@ -298,6 +316,10 @@ export function useProtocolCapabilities(): ProtocolCapabilities {
   const governanceVotes = governanceTokenConfig
     ? getReadContractResult<bigint>(userCapabilityData?.[userIndex++]) ?? 0n
     : 0n;
+  const hasBondingSweepRole =
+    genesisBondingConfig && bondingSweepRole
+      ? getReadContractResult<boolean>(userCapabilityData?.[userIndex++]) ?? false
+      : false;
   const hasProtocolCoreAdminRole =
     protocolCoreConfig &&
     protocolCoreAdminRole &&
@@ -380,6 +402,8 @@ export function useProtocolCapabilities(): ProtocolCapabilities {
       isEmergencyOperator,
       isTreasuryOperator,
       isAdminOperator,
+      hasBondingSweepRole,
+      hasTreasurySweepRole,
     };
   }, [
     address,
@@ -397,6 +421,7 @@ export function useProtocolCapabilities(): ProtocolCapabilities {
     isExecutionPaused,
     isVaultCreationPaused,
     proposalThreshold,
+    hasBondingSweepRole,
   ]);
 
   return useMemo(() => {
@@ -431,6 +456,7 @@ export function useProtocolCapabilities(): ProtocolCapabilities {
         Boolean(genesisBondingConfig) &&
         !isBondingFinalized,
       canOpenTreasuryOperations,
+      canWithdrawNonDaoAssets: isWalletConnected && hasTreasurySweepRole,
       canPauseVaultCreation,
       canResumeVaultCreation,
       canPauseVaultDeposits,
@@ -438,6 +464,7 @@ export function useProtocolCapabilities(): ProtocolCapabilities {
       canPauseRiskExecution,
       canResumeRiskExecution,
       canAccessAdminConsole,
+      canSweepBondingTokens: isWalletConnected && hasBondingSweepRole,
     };
   }, [
     context,
@@ -507,5 +534,8 @@ export function deriveCapabilities(
       (context.isAdminOperator ||
         context.isManagerOperator ||
         context.isEmergencyOperator),
+    canSweepBondingTokens: context.isWalletConnected && context.hasBondingSweepRole,
+    canWithdrawNonDaoAssets:
+      context.isWalletConnected && context.hasTreasurySweepRole,
   };
 }

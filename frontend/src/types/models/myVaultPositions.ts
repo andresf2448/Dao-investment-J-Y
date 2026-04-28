@@ -2,6 +2,7 @@ import type { ProtocolCapabilities } from "@/types/capabilities";
 
 export interface VaultPositionItem {
   vaultAddress: string;
+  fullAddress: string;
   asset: string;
   deposited: string;
   shares: string;

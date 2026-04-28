@@ -35,4 +35,10 @@ export interface BondingModel {
   position: BondingPosition;
   capabilities: ProtocolCapabilities;
   createTransaction: () => Promise<void>;
+  hasSweepRole: boolean;
+  sweepToken: string;
+  setSweepToken: (value: string) => void;
+  sweepTokenError?: string;
+  canSweep: boolean;
+  sweep: () => Promise<void>;
 }

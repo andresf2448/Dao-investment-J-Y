@@ -48,8 +48,8 @@ export function useTreasuryOperationsModel(): TreasuryOperationsModel {
     }));
   }, [genesisTokens, knownAssets]);
 
-  const [tokenAddress, setTokenAddress] = useState(
-    knownAssets[0]?.address ?? "",
+  const [tokenAddress, setTokenAddress] = useState<string>(
+    "",
   );
   const [amount, setAmount] = useState("");
   const [recipient, setRecipient] = useState("");
@@ -132,9 +132,9 @@ export function useTreasuryOperationsModel(): TreasuryOperationsModel {
   const isRecipientValid = isValidAddress(recipient.trim());
 
   const canExecute =
-    capabilities.canOpenTreasuryOperations &&
     !!selectedToken &&
-    tokenCategory === "DAO Asset" &&
+    selectedToken.category === "Non-DAO Asset" &&
+    capabilities.canWithdrawNonDaoAssets &&
     isAmountValid &&
     isRecipientValid &&
     !isSubmitting;
@@ -160,9 +160,14 @@ export function useTreasuryOperationsModel(): TreasuryOperationsModel {
     try {
       const parsedAmount = parseUnits(amount, selectedToken.decimals);
 
+      const functionName =
+        selectedToken.category === "DAO Asset"
+          ? "withdrawDaoERC20"
+          : "withdrawNotAssetDaoERC20";
+
       const response = await executeWrite({
         functionContract: "getTreasuryContract",
-        functionName: "withdrawDaoERC20",
+        functionName,
         args: [selectedToken.address, recipient.trim() as Address, parsedAmount],
         options: {
           waitForReceipt: true,
@@ -173,6 +178,7 @@ export function useTreasuryOperationsModel(): TreasuryOperationsModel {
         throw new Error("Treasury withdrawal failed.");
       }
 
+      setTokenAddress("");
       setAmount("");
       setRecipient("");
       await refetchGenesisTokens();
@@ -208,7 +214,7 @@ export function useTreasuryOperationsModel(): TreasuryOperationsModel {
     setTokenAddress,
     selectedToken,
     setSelectedToken: (token: TreasuryOperationToken) => {
-      setTokenAddress(token.address);
+      setTokenAddress("");
     },
     amount,
     setAmount,

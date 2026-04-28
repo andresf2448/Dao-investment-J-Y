@@ -20,6 +20,9 @@ export default function TreasuryOperationsPage() {
     executeWithdrawal,
   } = useTreasuryOperationsModel();
 
+  const lacksTreasurySweepPermission =
+    !capabilities.canWithdrawNonDaoAssets && tokenAddress.trim() !== "";
+
   return (
     <div className="space-y-8">
       <section className="rounded-3xl bg-gradient-to-r from-primary to-primary-light px-8 py-10 text-white shadow-card">
@@ -32,14 +35,20 @@ export default function TreasuryOperationsPage() {
         </h1>
 
         <p className="mt-4 max-w-3xl text-sm leading-7 text-blue-50 lg:text-base">
-          Treasury withdrawals must remain separated by asset category and governed
-          by explicit protocol permissions and treasury classification rules.
+          This screen is reserved for sweeping non-DAO treasury tokens that are not
+          part of the DAO core asset set. DAO tokens must be withdrawn through the
+          formal DAO proposal process.
         </p>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <HeroMetric label="Access" value={capabilities.canOpenTreasuryOperations ? "Enabled" : "Restricted"} />
+          <HeroMetric
+            label="Sweep Access"
+            value={
+              capabilities.canWithdrawNonDaoAssets ? "Enabled" : "Restricted"
+            }
+          />
           <HeroMetric label="Selected Token" value={selectedToken?.symbol ?? "—"} />
-          <HeroMetric label="Token Category" value={selectedToken?.category ?? "—"} />
+          <HeroMetric label="Operation Mode" value="Non-DAO Asset Only" />
         </div>
       </section>
 
@@ -52,26 +61,14 @@ export default function TreasuryOperationsPage() {
               <label className="text-sm text-text-secondary">Token Address</label>
               <input
                 type="text"
-                list="treasury-token-options"
                 value={tokenAddress}
                 onChange={(e) => setTokenAddress(e.target.value)}
                 placeholder="0x..."
                 className="mt-2 w-full rounded-xl border border-border px-4 py-3 text-sm"
               />
-              <datalist id="treasury-token-options">
-                {tokens.map((token) => (
-                  <option
-                    key={token.address}
-                    value={token.address}
-                    label={`${token.symbol} — ${token.category}`}
-                  >
-                    {token.symbol} — {token.category}
-                  </option>
-                ))}
-              </datalist>
               <p className="mt-2 text-xs leading-6 text-text-secondary">
-                You can paste any ERC20 address. Known treasury assets are suggested
-                below, and the category is resolved from protocol support rules.
+                Enter any ERC20 address to sweep. Only non-DAO treasury tokens are
+                supported here; DAO token withdrawals must follow the DAO proposal flow.
               </p>
             </div>
 
@@ -114,6 +111,22 @@ export default function TreasuryOperationsPage() {
             >
               {isSubmitting ? "Processing Withdrawal..." : "Execute Withdrawal"}
             </button>
+            {selectedToken?.category === "DAO Asset" ? (
+              <p className="mt-3 text-sm text-warning">
+                DAO asset addresses are not allowed in this flow. Use the DAO
+                proposal withdrawal process for core DAO tokens.
+              </p>
+            ) : selectedToken === null && tokenAddress.trim() !== "" ? (
+              <p className="mt-3 text-sm text-warning">
+                Token address must be a valid ERC20 and cannot be a core DAO asset.
+              </p>
+            ) : null}
+            {lacksTreasurySweepPermission ? (
+              <p className="mt-3 text-sm text-warning">
+                Your wallet lacks the treasury sweep permission
+                (SWEEP_NOT_ASSET_DAO_ROLE), so this action remains disabled.
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -139,11 +152,11 @@ export default function TreasuryOperationsPage() {
                   <AlertTriangle className="mt-0.5 h-5 w-5 text-yellow-700" />
                   <div>
                     <p className="text-sm font-medium text-yellow-800">
-                      DAO Asset Withdrawals
+                      Non-DAO Asset Sweep
                     </p>
                     <p className="mt-1 text-sm leading-6 text-yellow-700">
-                      You can paste any ERC20 address, but direct execution is
-                      only enabled for DAO-classified assets in this MVP.
+                      This form only supports non-DAO treasury tokens. DAO assets
+                      must be withdrawn through the DAO proposal process.
                     </p>
                   </div>
                 </div>

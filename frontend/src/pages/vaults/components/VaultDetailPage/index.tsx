@@ -12,11 +12,20 @@ export default function VaultDetailPage() {
   const [mintSharesAmount, setMintSharesAmount] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [redeemSharesAmount, setRedeemSharesAmount] = useState("");
-  const { 
+const {
     vault,
     position,
     controls,
-    capabilities 
+    capabilities,
+    isSubmitting,
+    depositAssetBalance,
+    hasDepositAssetBalance,
+    canShowGuardianOperations,
+    deposit,
+    mint,
+    withdraw,
+    redeem,
+    executeStrategy,
   } = useVaultDetailModel(vaultAddress);
 
   const depositsStatusLabel = controls.depositsEnabled ? "Enabled" : "Paused";
@@ -33,13 +42,18 @@ export default function VaultDetailPage() {
     value.trim() !== "" &&
     Number.isFinite(Number(value)) &&
     Number(value) > 0;
-  const canDeposit = controls.depositsEnabled && isPositiveNumber(depositAmount);
+  const canDeposit =
+    controls.depositsEnabled &&
+    isPositiveNumber(depositAmount) &&
+    hasDepositAssetBalance;
   const canMint = controls.depositsEnabled && isPositiveNumber(mintSharesAmount);
   const canWithdraw = isPositiveNumber(withdrawAmount);
   const canRedeem = isPositiveNumber(redeemSharesAmount);
   const depositAmountError =
     depositAmount.trim() !== "" && !isPositiveNumber(depositAmount)
       ? `Enter a valid ${vault.asset} amount greater than 0.`
+      : depositAmount.trim() !== "" && !hasDepositAssetBalance
+      ? `You have no ${vault.asset} balance to deposit.`
       : undefined;
   const mintSharesAmountError =
     mintSharesAmount.trim() !== "" && !isPositiveNumber(mintSharesAmount)
@@ -53,6 +67,30 @@ export default function VaultDetailPage() {
     redeemSharesAmount.trim() !== "" && !isPositiveNumber(redeemSharesAmount)
       ? "Enter a valid share amount greater than 0."
       : undefined;
+
+  const handleDeposit = async () => {
+    if (await deposit(depositAmount)) {
+      setDepositAmount("");
+    }
+  };
+
+  const handleMint = async () => {
+    if (await mint(mintSharesAmount)) {
+      setMintSharesAmount("");
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (await withdraw(withdrawAmount)) {
+      setWithdrawAmount("");
+    }
+  };
+
+  const handleRedeem = async () => {
+    if (await redeem(redeemSharesAmount)) {
+      setRedeemSharesAmount("");
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -111,7 +149,18 @@ export default function VaultDetailPage() {
 
           <div className="card-content grid gap-4 sm:grid-cols-2">
             <SummaryStat
-              label="Deposited Assets"
+              label="Vault Total Assets"
+              value={vault.totalAssets}
+            />
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-header">My Position</div>
+
+          <div className="card-content grid gap-4 sm:grid-cols-2">
+            <SummaryStat
+              label="My Deposited Assets"
               value={position.depositedAssets}
             />
             <SummaryStat label="Minted Shares" value={position.mintedShares} />
@@ -125,18 +174,26 @@ export default function VaultDetailPage() {
             />
           </div>
         </div>
+      </section>
 
-        <div className="card">
-          <div className="card-header">Vault Metadata</div>
+      <section className="card">
+        <div className="card-header">Vault Metadata</div>
 
-          <div className="card-content space-y-4">
-            <MetaRow label="Vault Address" value={formatAddress(vault.address)} />
-            <MetaRow label="Underlying Asset" value={vault.asset} />
-            <MetaRow label="Guardian" value={formatAddress(vault.guardian)} />
-            <MetaRow label="Registered At" value={vault.registeredAt} />
-            <MetaRow label="Status" value={vault.status} />
-            <MetaRow label="Decimals" value={String(vault.decimals)} />
-          </div>
+        <div className="card-content space-y-4">
+          <MetaRow
+            label="Vault Address"
+            value={formatAddress(vault.address)}
+            copyValue={vault.address}
+          />
+          <MetaRow label="Underlying Asset" value={vault.asset} />
+          <MetaRow
+            label="Guardian"
+            value={formatAddress(vault.guardian)}
+            copyValue={vault.guardian}
+          />
+          <MetaRow label="Registered At" value={vault.registeredAt} />
+          <MetaRow label="Status" value={vault.status} />
+          <MetaRow label="Decimals" value={String(vault.decimals)} />
         </div>
       </section>
 
@@ -153,9 +210,14 @@ export default function VaultDetailPage() {
               error={depositAmountError}
               inputMode="decimal"
             />
+            <div className="flex items-center justify-between text-sm text-text-secondary">
+              <span>Your balance</span>
+              <span>{depositAssetBalance}</span>
+            </div>
             <button
               className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={!canDeposit}
+              disabled={!canDeposit || isSubmitting}
+              onClick={() => void handleDeposit()}
             >
               Deposit Assets
             </button>
@@ -170,13 +232,11 @@ export default function VaultDetailPage() {
             />
             <button
               className="btn-secondary w-full disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={!canMint}
+              disabled={!canMint || isSubmitting}
+              onClick={() => void handleMint()}
             >
               Mint Shares
             </button>
-
-            {/* TODO: conectar deposit(...) */}
-            {/* TODO: conectar mint(...) */}
             {/* TODO: deshabilitar además por wallet/session si aplica */}
           </div>
         </div>
@@ -193,9 +253,14 @@ export default function VaultDetailPage() {
               error={withdrawAmountError}
               inputMode="decimal"
             />
+            <div className="flex items-center justify-between text-sm text-text-secondary">
+              <span>Your balance</span>
+              <span>{depositAssetBalance}</span>
+            </div>
             <button
               className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={!canWithdraw}
+              disabled={!canWithdraw || isSubmitting}
+              onClick={() => void handleWithdraw()}
             >
               Withdraw Assets
             </button>
@@ -210,58 +275,50 @@ export default function VaultDetailPage() {
             />
             <button
               className="btn-secondary w-full disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={!canRedeem}
+              disabled={!canRedeem || isSubmitting}
+              onClick={() => void handleRedeem()}
             >
               Redeem Shares
             </button>
-
-            {/* TODO: conectar withdraw(...) */}
-            {/* TODO: conectar redeem(...) */}
           </div>
         </div>
       </section>
 
-      <section className="card">
-        <div className="card-header">Guardian Operations</div>
+      {canShowGuardianOperations ? (
+        <section className="card">
+          <div className="card-header">Guardian Operations</div>
 
-        <div className="card-content space-y-4">
-          <p className="text-sm leading-7 text-text-secondary">
-            Guardian-linked execution remains subject to protocol controls,
-            vault status and risk monitoring.
-          </p>
-
-          <div className="rounded-2xl border border-border bg-gray-50 px-4 py-4">
-            <p className="text-sm font-medium text-text-primary">
-              Strategy Execution
+          <div className="card-content space-y-4">
+            <p className="text-sm leading-7 text-text-secondary">
+              Guardian-linked execution remains subject to protocol controls,
+              vault status and risk monitoring.
             </p>
-            <p className="mt-1 text-sm leading-6 text-text-secondary">
-              {controls.strategyExecutionEnabled
-                ? "Execution is enabled at vault level, but still requires guardian capability from the connected wallet."
-                : "Execution is currently restricted by vault status or protocol risk controls."}
-            </p>
-          </div>
 
-          {capabilities.canAccessGuardianOperations ? (
+            <div className="rounded-2xl border border-border bg-gray-50 px-4 py-4">
+              <p className="text-sm font-medium text-text-primary">
+                Strategy Execution
+              </p>
+              <p className="mt-1 text-sm leading-6 text-text-secondary">
+                {controls.strategyExecutionEnabled
+                  ? "Execution is enabled at vault level, but still requires guardian capability from the connected wallet."
+                  : "Execution is currently restricted by vault status or protocol risk controls."}
+              </p>
+            </div>
+
             <button
               className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={!capabilities.canExecuteStrategy || !controls.strategyExecutionEnabled}
+              disabled={
+                !capabilities.canExecuteStrategy ||
+                !controls.strategyExecutionEnabled ||
+                isSubmitting
+              }
+              onClick={() => void executeStrategy()}
             >
               Execute Strategy
             </button>
-          ) : (
-            <div className="rounded-2xl border border-yellow-200 bg-yellow-50 px-4 py-4">
-              <p className="text-sm font-medium text-yellow-800">
-                Guardian Action Hidden
-              </p>
-              <p className="mt-1 text-sm leading-6 text-yellow-700">
-                Strategy execution controls are only shown to wallets with guardian access.
-              </p>
-            </div>
-          )}
-
-          {/* TODO: conectar executeStrategy(...) */}
-        </div>
-      </section>
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

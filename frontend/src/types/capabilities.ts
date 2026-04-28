@@ -7,6 +7,7 @@ export interface ProtocolCapabilities {
   canCreateVault: boolean;
   canExecuteStrategy: boolean;
   canOpenTreasuryOperations: boolean;
+  canWithdrawNonDaoAssets: boolean;
   canPauseVaultCreation: boolean;
   canResumeVaultCreation: boolean;
   canPauseVaultDeposits: boolean;
@@ -14,6 +15,7 @@ export interface ProtocolCapabilities {
   canPauseRiskExecution: boolean;
   canResumeRiskExecution: boolean;
   canAccessAdminConsole: boolean;
+  canSweepBondingTokens: boolean;
 }
 
 export interface ProtocolCapabilityContext {
@@ -33,6 +35,8 @@ export interface ProtocolCapabilityContext {
   isEmergencyOperator: boolean;
   isTreasuryOperator: boolean;
   isAdminOperator: boolean;
+  hasBondingSweepRole: boolean;
+  hasTreasurySweepRole: boolean;
 }
 
 export interface WalletState {

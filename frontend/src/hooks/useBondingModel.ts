@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { type Address } from "viem";
-import { useChainId, useConnection } from "wagmi";
+import { isAddress, type Address } from "viem";
+import { useChainId, useConnection, useReadContracts } from "wagmi";
 import Swal from "sweetalert2";
 import { getGenesisBondingContract } from "@dao/contracts-sdk";
 
@@ -39,6 +39,12 @@ export function useBondingModel(): BondingModel {
     [connection.address],
   );
 
+  const bondingConfig = useMemo<ReturnType<
+    typeof getGenesisBondingContract
+  > | null>(() => {
+    return resolveOptionalContract(chainId, getGenesisBondingContract);
+  }, [chainId]);
+
   const {
     isFinalized,
     rate,
@@ -51,6 +57,7 @@ export function useBondingModel(): BondingModel {
   const [selectedAssetAddress, setSelectedAssetAddress] =
     useState<Address | null>(null);
   const [amount, setAmount] = useState("");
+  const [sweepToken, setSweepToken] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isAmountValid =
     amount.trim() !== "" &&
@@ -60,12 +67,6 @@ export function useBondingModel(): BondingModel {
     amount.trim() !== "" && !isAmountValid
       ? "Enter a numeric amount greater than 0."
       : undefined;
-
-  const bondingConfig = useMemo<ReturnType<
-    typeof getGenesisBondingContract
-  > | null>(() => {
-    return resolveOptionalContract(chainId, getGenesisBondingContract);
-  }, [chainId]);
 
   const assets = useMemo<BondingAsset[]>(() => {
     const supportedAssets = (assetsSupported as Address[] | undefined) ?? [];
@@ -108,12 +109,23 @@ export function useBondingModel(): BondingModel {
   const estimatedTokens = useMemo(() => {
     return calculateEstimatedTokens(amount, state.rate);
   }, [amount, state.rate]);
+  const sweepTokenError =
+    sweepToken.trim() !== "" && !isAddress(sweepToken.trim())
+      ? "Enter a valid token address."
+      : undefined;
+
   const canBuy =
     capabilities.canBuyGovernanceTokens &&
     !state.isFinalized &&
     !isSubmitting &&
     !!selectedAsset &&
     isAmountValid;
+
+  const canSweep =
+    capabilities.canSweepBondingTokens &&
+    !isSubmitting &&
+    sweepToken.trim() !== "" &&
+    !sweepTokenError;
 
   const setSelectedAsset = (asset: BondingAsset) => {
     setSelectedAssetAddress(asset.address);
@@ -147,8 +159,7 @@ export function useBondingModel(): BondingModel {
   };
 
   const createTransaction = async () => {
-    if (!selectedAsset || !bondingConfig || !canBuy)
-      return;
+    if (!selectedAsset || !bondingConfig || !canBuy) return;
 
     const parsedAmount = parseBondingTokenAmount(amount);
 
@@ -241,6 +252,70 @@ export function useBondingModel(): BondingModel {
       ? formatTokenAmount(governanceTokenWalletBalance, "GOV")
       : "0 GOV";
 
+  const sweep = async () => {
+    if (!sweepToken || !bondingConfig || !capabilities.canSweepBondingTokens) return;
+
+    const parsedToken = sweepToken.trim();
+
+    if (!isAddress(parsedToken)) {
+      Swal.fire({
+        title: "Invalid token address",
+        text: "Please enter a valid ERC20 token address to sweep.",
+        icon: "error",
+        confirmButtonText: "OK",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    Swal.fire({
+      title: "Sweeping token",
+      text: "Please confirm the sweep transaction in your wallet.",
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
+
+    try {
+      const response = await executeWrite({
+        abi: bondingConfig.abi,
+        address: bondingConfig.address,
+        functionName: "sweep",
+        args: [parsedToken as Address],
+        options: { waitForReceipt: true },
+      });
+
+      if (!response || response.receipt?.status !== "success") {
+        throw new Error("Sweep transaction failed.");
+      }
+
+      await refetch();
+      Swal.close();
+
+      await Swal.fire({
+        title: "Sweep successful",
+        text: "The token has been swept to the bonding treasury.",
+        icon: "success",
+        confirmButtonText: "OK",
+      });
+      setSweepToken("");
+    } catch (error) {
+      const transactionError = getTransactionError(error);
+      Swal.hideLoading();
+      Swal.update({
+        title: transactionError.title,
+        text: transactionError.message,
+        icon: "error",
+        showConfirmButton: true,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const estimatedValue =
     typeof governanceTokenWalletBalance === "bigint" && state.rate > 0
       ? `$${(Number(governanceTokenWalletBalance) / 10 ** 18 / state.rate).toFixed(2)}`
@@ -266,5 +341,11 @@ export function useBondingModel(): BondingModel {
     position,
     capabilities,
     createTransaction,
+    sweepToken,
+    setSweepToken,
+    hasSweepRole: capabilities.canSweepBondingTokens,
+    sweepTokenError,
+    canSweep,
+    sweep,
   };
 }
