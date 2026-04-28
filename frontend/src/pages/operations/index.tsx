@@ -101,23 +101,45 @@ export default function OperationsPage() {
               title="Vault Creation Controls"
               description="Pause new vault deployment at protocol level."
               primaryAction="Pause Creation"
+              secondaryAction="Resume Creation"
               disablePrimary={
                 !capabilities.canPauseVaultCreation ||
                 status.vaultCreation === "paused"
               }
+              disableSecondary={
+                (!capabilities.canResumeVaultCreation && !capabilities.canCreateProposal) ||
+                status.vaultCreation === "enabled"
+              }
+              secondaryActionMessage={
+                !capabilities.canCreateProposal
+                  ? "You need enough governance voting power to create a resume proposal."
+                  : undefined
+              }
               statusMessage={vaultCreationStatusMessage}
               onPrimaryAction={actions.pauseVaultCreation}
+              onSecondaryAction={actions.resumeVaultCreation}
             />
             <OperationRow
               title="Vault Deposit Controls"
               description="Pause deposits across vault infrastructure."
               primaryAction="Pause Deposits"
+              secondaryAction="Resume Deposits"
               disablePrimary={
                 !capabilities.canPauseVaultDeposits ||
                 status.vaultDeposits === "paused"
               }
+              disableSecondary={
+                (!capabilities.canResumeVaultDeposits && !capabilities.canCreateProposal) ||
+                status.vaultDeposits === "enabled"
+              }
+              secondaryActionMessage={
+                !capabilities.canCreateProposal
+                  ? "You need enough governance voting power to create a resume proposal."
+                  : undefined
+              }
               statusMessage={vaultDepositsStatusMessage}
               onPrimaryAction={actions.pauseVaultDeposits}
+              onSecondaryAction={actions.resumeVaultDeposits}
             />
 
             {!capabilities.canPauseVaultCreation &&
@@ -129,8 +151,9 @@ export default function OperationsPage() {
                   Controls Protected
                 </p>
                 <p className="mt-1 text-sm leading-6 text-yellow-700">
-                  Operational buttons stay blocked until the connected wallet has
-                  manager or emergency permissions.
+                  Pause buttons remain blocked until the connected wallet has
+                  emergency permissions. Proposal-based actions also require
+                  sufficient governance voting power.
                 </p>
               </div>
             ) : null}
@@ -141,8 +164,8 @@ export default function OperationsPage() {
               </p>
               <p className="mt-1 text-sm leading-6 text-yellow-700">
                 Emergency operators and managers do not share the same operational
-                actions. Pauses can be triggered here, but reactivations must be
-                completed through a governed proposal.
+                actions. Pauses can be triggered here, while reactivations and
+                configuration updates are submitted as governance proposals.
               </p>
             </div>
 
@@ -245,7 +268,9 @@ export default function OperationsPage() {
             value={wiring.factoryRouter}
             inputValue={wiringForm.factoryRouterInput}
             onInputChange={wiringForm.setFactoryRouterInput}
-            actionDisabled={!wiringForm.canSubmitFactoryRouter}
+            actionDisabled={
+              !capabilities.canCreateProposal || !wiringForm.canSubmitFactoryRouter
+            }
             error={wiringForm.factoryRouterError ?? wiringForm.wiringPermissionMessage}
             onAction={actions.setFactoryRouter}
           />
@@ -256,7 +281,9 @@ export default function OperationsPage() {
             value={wiring.factoryCore}
             inputValue={wiringForm.factoryCoreInput}
             onInputChange={wiringForm.setFactoryCoreInput}
-            actionDisabled={!wiringForm.canSubmitFactoryCore}
+            actionDisabled={
+              !capabilities.canCreateProposal || !wiringForm.canSubmitFactoryCore
+            }
             error={wiringForm.factoryCoreError ?? wiringForm.wiringPermissionMessage}
             onAction={actions.setFactoryCore}
           />
@@ -267,7 +294,10 @@ export default function OperationsPage() {
             value={wiring.guardianAdministrator}
             inputValue={wiringForm.guardianAdministratorInput}
             onInputChange={wiringForm.setGuardianAdministratorInput}
-            actionDisabled={!wiringForm.canSubmitGuardianAdministrator}
+            actionDisabled={
+              !capabilities.canCreateProposal ||
+              !wiringForm.canSubmitGuardianAdministrator
+            }
             error={
               wiringForm.guardianAdministratorError ??
               wiringForm.wiringPermissionMessage
@@ -281,7 +311,9 @@ export default function OperationsPage() {
             value={wiring.vaultRegistry}
             inputValue={wiringForm.vaultRegistryInput}
             onInputChange={wiringForm.setVaultRegistryInput}
-            actionDisabled={!wiringForm.canSubmitVaultRegistry}
+            actionDisabled={
+              !capabilities.canCreateProposal || !wiringForm.canSubmitVaultRegistry
+            }
             error={wiringForm.vaultRegistryError ?? wiringForm.wiringPermissionMessage}
             onAction={actions.setVaultRegistry}
           />
@@ -292,7 +324,10 @@ export default function OperationsPage() {
             value={wiring.treasuryProtocolCore}
             inputValue={wiringForm.treasuryProtocolCoreInput}
             onInputChange={wiringForm.setTreasuryProtocolCoreInput}
-            actionDisabled={!wiringForm.canSubmitTreasuryProtocolCore}
+            actionDisabled={
+              !capabilities.canCreateProposal ||
+              !wiringForm.canSubmitTreasuryProtocolCore
+            }
             error={
               wiringForm.treasuryProtocolCoreError ??
               wiringForm.wiringPermissionMessage

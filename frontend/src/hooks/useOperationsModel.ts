@@ -1,17 +1,24 @@
 import {
+  getDaoGovernorContract,
   getProtocolCoreContract,
   getTreasuryContract,
 } from "@dao/contracts-sdk";
 import { useCallback, useMemo, useState } from "react";
 import Swal from "sweetalert2";
 import { useChainId, useReadContracts } from "wagmi";
+import { encodeFunctionData, parseEventLogs, type Address } from "viem";
 import type {
   InfrastructureWiring,
   OperationsModel,
   OperationsStatus,
 } from "@/types/models/operations";
 import { getKnownProtocolAssets } from "@/constants/protocolAssets";
-import { formatAddress, getTransactionError, isValidAddress } from "@/utils";
+import {
+  formatAddress,
+  getTransactionError,
+  isValidAddress,
+  saveProposalMetadata,
+} from "@/utils";
 import { useProtocolCapabilities } from "./useProtocolCapabilities";
 import { getVaultFactoryContract } from "./getVaultFactoryContract";
 import {
@@ -70,6 +77,11 @@ export function useOperationsModel(): OperationsModel {
   const treasuryConfig = useMemo(() => {
     return resolveOptionalContract(chainId, getTreasuryContract);
   }, [chainId]);
+
+  const governorConfig = useMemo(
+    () => resolveOptionalContract(chainId, getDaoGovernorContract),
+    [chainId],
+  );
 
   const { data: wiringData } = useReadContracts({
     allowFailure: true,
@@ -187,24 +199,21 @@ export function useOperationsModel(): OperationsModel {
       : undefined;
 
   const canSubmitFactoryRouter =
-    capabilities.canAccessAdminConsole &&
+    capabilities.canCreateProposal &&
     isValidAddress(factoryRouterInput.trim());
   const canSubmitFactoryCore =
-    capabilities.canAccessAdminConsole && isValidAddress(factoryCoreInput.trim());
+    capabilities.canCreateProposal && isValidAddress(factoryCoreInput.trim());
   const canSubmitGuardianAdministrator =
-    capabilities.canAccessAdminConsole &&
+    capabilities.canCreateProposal &&
     isValidAddress(guardianAdministratorInput.trim());
   const canSubmitVaultRegistry =
-    capabilities.canAccessAdminConsole && isValidAddress(vaultRegistryInput.trim());
+    capabilities.canCreateProposal && isValidAddress(vaultRegistryInput.trim());
   const canSubmitTreasuryProtocolCore =
-    capabilities.canAccessAdminConsole &&
+    capabilities.canCreateProposal &&
     isValidAddress(treasuryProtocolCoreInput.trim());
 
-  const assetSupportPermissionMessage = !capabilities.canResumeVaultCreation
-    ? "Asset support actions are restricted to manager operators."
-    : undefined;
-  const wiringPermissionMessage = !capabilities.canAccessAdminConsole
-    ? "Infrastructure wiring is restricted to administrative operators."
+  const proposalPermissionMessage = !capabilities.canCreateProposal
+    ? "Governance voting power is required to submit proposal-based changes."
     : undefined;
 
   const executeOperation = useCallback(
@@ -264,6 +273,98 @@ export function useOperationsModel(): OperationsModel {
     [executeWrite, refetch],
   );
 
+  const createGovernanceProposal = useCallback(
+    async (
+      title: string,
+      description: string,
+      target: Address,
+      abi: readonly unknown[],
+      functionName: string,
+      args: readonly unknown[] = [],
+    ) => {
+      if (!governorConfig) {
+        throw new Error("Governance contract unavailable.");
+      }
+
+      const calldata = encodeFunctionData({
+        abi,
+        functionName,
+        args,
+      }) as `0x${string}`;
+
+      const proposalTitle = title.trim();
+      const proposalDescription = [proposalTitle, description.trim()]
+        .filter(Boolean)
+        .join("\n\n");
+
+      Swal.fire({
+        title,
+        text: "Confirm the proposal transaction in your wallet.",
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => {
+          Swal.showLoading();
+        },
+      });
+
+      try {
+        const response = await executeWrite({
+          functionContract: "getDaoGovernorContract",
+          functionName: "propose",
+          args: [[target], [0n], [calldata], proposalDescription],
+          options: {
+            waitForReceipt: true,
+          },
+        });
+
+        if (response?.receipt?.status !== "success") {
+          throw new Error("Proposal submission failed.");
+        }
+
+        const proposalCreatedEvent = parseEventLogs({
+          abi: governorConfig.abi,
+          logs: response.receipt?.logs ?? [],
+          eventName: "ProposalCreated",
+        })?.[0];
+        const proposalId = proposalCreatedEvent?.args?.proposalId?.toString();
+
+        if (proposalId) {
+          saveProposalMetadata(chainId, {
+            proposalId,
+            title: proposalTitle,
+            description: description.trim(),
+            composedDescription: proposalDescription,
+          });
+        }
+
+        await refetch();
+        Swal.close();
+
+        await Swal.fire({
+          title: "Proposal submitted",
+          text: "A governance proposal was created successfully.",
+          icon: "success",
+          confirmButtonText: "OK",
+        });
+      } catch (error) {
+        const transactionError = getTransactionError(error);
+
+        Swal.hideLoading();
+        Swal.update({
+          title: transactionError.title,
+          text: transactionError.message,
+          icon: "error",
+          showConfirmButton: true,
+          confirmButtonText: "OK",
+          allowOutsideClick: true,
+          allowEscapeKey: true,
+        });
+      }
+    },
+    [chainId, executeWrite, governorConfig, refetch],
+  );
+
   const pauseVaultCreation = useCallback(
     () =>
       executeOperation("Pausing vault creation", {
@@ -273,12 +374,20 @@ export function useOperationsModel(): OperationsModel {
     [executeOperation],
   );
   const resumeVaultCreation = useCallback(
-    () =>
-      executeOperation("Resuming vault creation", {
-        functionContract: "getProtocolCoreContract",
-        functionName: "unpauseVaultCreation",
-      }),
-    [executeOperation],
+    () => {
+      if (!protocolCoreConfig) {
+        throw new Error("ProtocolCore contract unavailable.");
+      }
+
+      return createGovernanceProposal(
+        "Resume vault creation",
+        "This proposal requests DAO approval to resume vault creation at protocol level.",
+        protocolCoreConfig.address as Address,
+        protocolCoreConfig.abi,
+        "unpauseVaultCreation",
+      );
+    },
+    [createGovernanceProposal, protocolCoreConfig],
   );
   const pauseVaultDeposits = useCallback(
     () =>
@@ -289,25 +398,37 @@ export function useOperationsModel(): OperationsModel {
     [executeOperation],
   );
   const resumeVaultDeposits = useCallback(
-    () =>
-      executeOperation("Resuming vault deposits", {
-        functionContract: "getProtocolCoreContract",
-        functionName: "unpauseVaultDeposits",
-      }),
-    [executeOperation],
+    () => {
+      if (!protocolCoreConfig) {
+        throw new Error("ProtocolCore contract unavailable.");
+      }
+
+      return createGovernanceProposal(
+        "Resume vault deposits",
+        "This proposal requests DAO approval to resume vault deposits across vault infrastructure.",
+        protocolCoreConfig.address as Address,
+        protocolCoreConfig.abi,
+        "unpauseVaultDeposits",
+      );
+    },
+    [createGovernanceProposal, protocolCoreConfig],
   );
   const addSupportedVaultAsset = useCallback(
-    () =>
-      executeOperation(
-        "Adding supported vault asset",
-        {
-          functionContract: "getProtocolCoreContract",
-          functionName: "setSupportedVaultAsset",
-          args: [supportedVaultAsset.trim(), true],
-        },
-        () => setSupportedVaultAsset(""),
-      ),
-    [executeOperation, supportedVaultAsset],
+    () => {
+      if (!protocolCoreConfig) {
+        throw new Error("ProtocolCore contract unavailable.");
+      }
+
+      return createGovernanceProposal(
+        "Add supported vault asset",
+        "This proposal requests DAO approval to add a supported vault asset to ProtocolCore.",
+        protocolCoreConfig.address as Address,
+        protocolCoreConfig.abi,
+        "setSupportedVaultAsset",
+        [supportedVaultAsset.trim(), true],
+      ).then(() => setSupportedVaultAsset(""));
+    },
+    [createGovernanceProposal, protocolCoreConfig, supportedVaultAsset],
   );
   const updateSupportedGenesisTokens = useCallback(() => {
     const nextToken = supportedGenesisToken.trim();
@@ -320,80 +441,103 @@ export function useOperationsModel(): OperationsModel {
       return Promise.resolve();
     }
 
-    return executeOperation(
-      "Updating supported genesis tokens",
-      {
-        functionContract: "getProtocolCoreContract",
-        functionName: "setSupportedGenesisTokens",
-        args: [[...supportedGenesisTokensList, nextToken]],
-      },
-      () => setSupportedGenesisToken(""),
-    );
-  }, [executeOperation, supportedGenesisToken, supportedGenesisTokensList]);
+    if (!protocolCoreConfig) {
+      throw new Error("ProtocolCore contract unavailable.");
+    }
+
+    return createGovernanceProposal(
+      "Update supported genesis tokens",
+      "This proposal requests DAO approval to update the supported genesis tokens list for ProtocolCore.",
+      protocolCoreConfig.address as Address,
+      protocolCoreConfig.abi,
+      "setSupportedGenesisTokens",
+      [[...supportedGenesisTokensList, nextToken]],
+    ).then(() => setSupportedGenesisToken(""));
+  }, [createGovernanceProposal, protocolCoreConfig, supportedGenesisToken, supportedGenesisTokensList]);
   const setFactoryRouter = useCallback(
-    () =>
-      executeOperation(
-        "Updating factory router",
-        {
-          functionContract: "getVaultFactoryContract",
-          functionName: "setRouter",
-          args: [factoryRouterInput.trim()],
-        },
-        () => setFactoryRouterInput(""),
-      ),
-    [executeOperation, factoryRouterInput],
+    () => {
+      if (!vaultFactoryConfig) {
+        throw new Error("VaultFactory contract unavailable.");
+      }
+
+      return createGovernanceProposal(
+        "Update factory router",
+        "This proposal requests DAO approval to update the VaultFactory router reference.",
+        vaultFactoryConfig.address as Address,
+        vaultFactoryConfig.abi,
+        "setRouter",
+        [factoryRouterInput.trim()],
+      ).then(() => setFactoryRouterInput(""));
+    },
+    [createGovernanceProposal, factoryRouterInput, vaultFactoryConfig],
   );
   const setFactoryCore = useCallback(
-    () =>
-      executeOperation(
-        "Updating factory core",
-        {
-          functionContract: "getVaultFactoryContract",
-          functionName: "setCore",
-          args: [factoryCoreInput.trim()],
-        },
-        () => setFactoryCoreInput(""),
-      ),
-    [executeOperation, factoryCoreInput],
+    () => {
+      if (!vaultFactoryConfig) {
+        throw new Error("VaultFactory contract unavailable.");
+      }
+
+      return createGovernanceProposal(
+        "Update factory core",
+        "This proposal requests DAO approval to update the VaultFactory core reference.",
+        vaultFactoryConfig.address as Address,
+        vaultFactoryConfig.abi,
+        "setCore",
+        [factoryCoreInput.trim()],
+      ).then(() => setFactoryCoreInput(""));
+    },
+    [createGovernanceProposal, factoryCoreInput, vaultFactoryConfig],
   );
   const setGuardianAdministrator = useCallback(
-    () =>
-      executeOperation(
-        "Updating guardian administrator",
-        {
-          functionContract: "getVaultFactoryContract",
-          functionName: "setGuardianAdministrator",
-          args: [guardianAdministratorInput.trim()],
-        },
-        () => setGuardianAdministratorInput(""),
-      ),
-    [executeOperation, guardianAdministratorInput],
+    () => {
+      if (!vaultFactoryConfig) {
+        throw new Error("VaultFactory contract unavailable.");
+      }
+
+      return createGovernanceProposal(
+        "Update guardian administrator",
+        "This proposal requests DAO approval to update the VaultFactory guardian administrator reference.",
+        vaultFactoryConfig.address as Address,
+        vaultFactoryConfig.abi,
+        "setGuardianAdministrator",
+        [guardianAdministratorInput.trim()],
+      ).then(() => setGuardianAdministratorInput(""));
+    },
+    [createGovernanceProposal, guardianAdministratorInput, vaultFactoryConfig],
   );
   const setVaultRegistry = useCallback(
-    () =>
-      executeOperation(
-        "Updating vault registry",
-        {
-          functionContract: "getVaultFactoryContract",
-          functionName: "setVaultRegistry",
-          args: [vaultRegistryInput.trim()],
-        },
-        () => setVaultRegistryInput(""),
-      ),
-    [executeOperation, vaultRegistryInput],
+    () => {
+      if (!vaultFactoryConfig) {
+        throw new Error("VaultFactory contract unavailable.");
+      }
+
+      return createGovernanceProposal(
+        "Update vault registry",
+        "This proposal requests DAO approval to update the VaultFactory vault registry reference.",
+        vaultFactoryConfig.address as Address,
+        vaultFactoryConfig.abi,
+        "setVaultRegistry",
+        [vaultRegistryInput.trim()],
+      ).then(() => setVaultRegistryInput(""));
+    },
+    [createGovernanceProposal, vaultRegistryInput, vaultFactoryConfig],
   );
   const setTreasuryProtocolCore = useCallback(
-    () =>
-      executeOperation(
-        "Updating treasury core reference",
-        {
-          functionContract: "getTreasuryContract",
-          functionName: "setProtocolCore",
-          args: [treasuryProtocolCoreInput.trim()],
-        },
-        () => setTreasuryProtocolCoreInput(""),
-      ),
-    [executeOperation, treasuryProtocolCoreInput],
+    () => {
+      if (!treasuryConfig) {
+        throw new Error("Treasury contract unavailable.");
+      }
+
+      return createGovernanceProposal(
+        "Update treasury core reference",
+        "This proposal requests DAO approval to update the Treasury ProtocolCore reference.",
+        treasuryConfig.address as Address,
+        treasuryConfig.abi,
+        "setProtocolCore",
+        [treasuryProtocolCoreInput.trim()],
+      ).then(() => setTreasuryProtocolCoreInput(""));
+    },
+    [createGovernanceProposal, treasuryConfig, treasuryProtocolCoreInput],
   );
 
   const wiringValues = useMemo(
@@ -439,16 +583,16 @@ export function useOperationsModel(): OperationsModel {
       setSupportedVaultAsset,
       supportedVaultAssetError,
       canAddSupportedVaultAsset:
-        capabilities.canResumeVaultCreation &&
+        capabilities.canCreateProposal &&
         isValidAddress(supportedVaultAsset.trim()),
       supportedGenesisToken,
       setSupportedGenesisToken,
       supportedGenesisTokenError,
       canUpdateSupportedGenesisTokens:
-        capabilities.canResumeVaultCreation &&
+        capabilities.canCreateProposal &&
         isValidAddress(supportedGenesisToken.trim()),
       supportedGenesisTokenCount,
-      assetSupportPermissionMessage,
+      assetSupportPermissionMessage: proposalPermissionMessage,
     },
     wiringForm: {
       factoryRouterInput,
@@ -471,7 +615,7 @@ export function useOperationsModel(): OperationsModel {
       setTreasuryProtocolCoreInput,
       treasuryProtocolCoreError,
       canSubmitTreasuryProtocolCore,
-      wiringPermissionMessage,
+      wiringPermissionMessage: proposalPermissionMessage,
     },
     actions: {
       pauseVaultCreation,
