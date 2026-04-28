@@ -16,6 +16,7 @@ const networkNamesByChainId: Record<number, Record<string, string>> = {
   31337: {
     "0x5FbDB2315678afecb367f032d93F642f64180aa3": "USDT",
     "0x172076E0166D1F9Cc711C77Adf8488051744980C": "USDC",
+    "0x8fC8CFB7f7362E44E472c690A6e025B80E406458": "TEST"
   },
 };
 

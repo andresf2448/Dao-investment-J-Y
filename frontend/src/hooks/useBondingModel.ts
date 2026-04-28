@@ -53,6 +53,7 @@ export function useBondingModel(): BondingModel {
     governanceTokenWalletBalance,
     refetch,
   } = useProtocolReads(bondingProtocolReadDefinitions, bondingReadContext);
+console.log("===============", assetsSupported);
 
   const [selectedAssetAddress, setSelectedAssetAddress] =
     useState<Address | null>(null);

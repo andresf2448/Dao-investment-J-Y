@@ -47,6 +47,11 @@ s_deployLocal:
 s_seedLocal:
 	forge script script/local/SeedLocal.s.sol:SeedLocal --rpc-url http://127.0.0.1:8545 --broadcast --slow --skip-simulation -vvvv
 
+s_deployToken:
+	forge script script/DeployToken.s.sol:DeployToken \
+  --rpc-url http://127.0.0.1:8545 \
+  --broadcast --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+
 .PHONY: s_bootstrapLocal
 
-s_bootstrapLocal: s_deployLocal s_seedLocal
+s_bootstrapLocal: s_deployLocal s_seedLocal s_deployToken
