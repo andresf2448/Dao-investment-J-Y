@@ -9,6 +9,7 @@ import {
   getRiskManagerContract,
   getTreasuryContract,
   getVaultRegistryContract,
+  getVaultImplementationContract,
 } from "@dao/contracts-sdk";
 import { getVaultFactoryContract } from "./getVaultFactoryContract";
 
@@ -23,6 +24,7 @@ export const protocolContractGetters = {
   getGuardianAdministratorContract,
   getGuardianBondEscrowContract,
   getVaultFactoryContract,
+  getVaultImplementationContract,
 } as const;
 
 export type ProtocolContractGetterName = keyof typeof protocolContractGetters;

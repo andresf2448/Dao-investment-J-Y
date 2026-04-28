@@ -19,6 +19,15 @@ export default function OperationsPage() {
   } =
     useOperationsModel();
 
+  const vaultCreationStatusMessage =
+    status.vaultCreation === "paused"
+      ? "Vault creation is currently paused at protocol level."
+      : undefined;
+  const vaultDepositsStatusMessage =
+    status.vaultDeposits === "paused"
+      ? "Vault deposits are currently paused across vault infrastructure."
+      : undefined;
+
   return (
     <div className="space-y-8">
       <section className="rounded-3xl bg-gradient-to-r from-primary to-primary-light px-8 py-10 text-white shadow-card">
@@ -90,23 +99,25 @@ export default function OperationsPage() {
           <div className="card-content space-y-4">
             <OperationRow
               title="Vault Creation Controls"
-              description="Pause or resume new vault deployment at protocol level."
+              description="Pause new vault deployment at protocol level."
               primaryAction="Pause Creation"
-              secondaryAction="Resume Creation"
-              disablePrimary={!capabilities.canPauseVaultCreation}
-              disableSecondary={!capabilities.canResumeVaultCreation}
+              disablePrimary={
+                !capabilities.canPauseVaultCreation ||
+                status.vaultCreation === "paused"
+              }
+              statusMessage={vaultCreationStatusMessage}
               onPrimaryAction={actions.pauseVaultCreation}
-              onSecondaryAction={actions.resumeVaultCreation}
             />
             <OperationRow
               title="Vault Deposit Controls"
-              description="Pause or resume deposits across vault infrastructure."
+              description="Pause deposits across vault infrastructure."
               primaryAction="Pause Deposits"
-              secondaryAction="Resume Deposits"
-              disablePrimary={!capabilities.canPauseVaultDeposits}
-              disableSecondary={!capabilities.canResumeVaultDeposits}
+              disablePrimary={
+                !capabilities.canPauseVaultDeposits ||
+                status.vaultDeposits === "paused"
+              }
+              statusMessage={vaultDepositsStatusMessage}
               onPrimaryAction={actions.pauseVaultDeposits}
-              onSecondaryAction={actions.resumeVaultDeposits}
             />
 
             {!capabilities.canPauseVaultCreation &&
@@ -130,7 +141,8 @@ export default function OperationsPage() {
               </p>
               <p className="mt-1 text-sm leading-6 text-yellow-700">
                 Emergency operators and managers do not share the same operational
-                actions. Pause and resume workflows must stay clearly separated.
+                actions. Pauses can be triggered here, but reactivations must be
+                completed through a governed proposal.
               </p>
             </div>
 

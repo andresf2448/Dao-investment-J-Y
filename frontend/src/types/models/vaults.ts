@@ -31,6 +31,7 @@ export interface VaultsModel {
   availableAssets: string[];
   availableGuardians: string[];
   isVaultDepositsPaused: boolean;
+  isVaultCreationPaused: boolean;
   vaultExplorerStatus: string;
   vaultExplorerSubtitle: string;
   guardianRoutingStatus: string;

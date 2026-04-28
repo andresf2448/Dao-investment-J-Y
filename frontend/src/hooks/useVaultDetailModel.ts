@@ -1,11 +1,6 @@
-import {
-  addresses,
-  getProtocolCoreContract,
-  getRiskManagerContract,
-  getVaultRegistryContract,
-} from "@dao/contracts-sdk";
-import { useMemo, useState } from "react";
-import { useChainId, useConnection, useReadContracts } from "wagmi";
+import { addresses } from "@dao/contracts-sdk";
+import { useEffect, useMemo, useState } from "react";
+import { useChainId, useConnection } from "wagmi";
 import { encodeAbiParameters } from "viem";
 import type { Address } from "viem";
 import type {
@@ -25,121 +20,56 @@ import {
   parseTimestamp,
   parseTokenAmount,
 } from "@/utils";
-import { getReadContractResult } from "./shared/contractResults";
-import type { VaultRegistryDetail } from "./shared/contractTypes";
-import { resolveOptionalContract } from "./shared/resolveContract";
-import useWriteContracts from "./useWriteContracts";
 
-const vaultAbi = [
+import type { VaultRegistryDetail } from "./shared/contractTypes";
+import useWriteContracts from "./useWriteContracts";
+import { useProtocolReads } from "./useProtocolReads";
+import type { ProtocolReadDefinition } from "./useProtocolReads";
+import useProtocolReadExecutor from "./useProtocolReadExecutor";
+import { resolveProtocolContract } from "./protocolContracts";
+
+type VaultDetailProtocolContext = {
+  vaultAddress: Address | undefined;
+};
+
+const vaultDetailProtocolDefinitions: ProtocolReadDefinition<
+  "vaultDetail" | "isVaultDepositsPaused" | "isExecutionPaused",
+  VaultDetailProtocolContext
+>[] = [
   {
-    type: "function",
-    name: "decimals",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "", type: "uint8" }],
+    key: "vaultDetail",
+    contract: "getVaultRegistryContract",
+    functionName: "getVaultDetail",
+    args: (context) =>
+      context.vaultAddress ? [context.vaultAddress] : undefined,
   },
   {
-    type: "function",
-    name: "balanceOf",
-    stateMutability: "view",
-    inputs: [{ name: "account", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }],
+    key: "isVaultDepositsPaused",
+    contract: "getProtocolCoreContract",
+    functionName: "isVaultDepositsPaused",
   },
   {
-    type: "function",
-    name: "totalAssets",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "", type: "uint256" }],
+    key: "isExecutionPaused",
+    contract: "getRiskManagerContract",
+    functionName: "executionPaused",
   },
-  {
-    type: "function",
-    name: "maxWithdraw",
-    stateMutability: "view",
-    inputs: [{ name: "owner", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "maxRedeem",
-    stateMutability: "view",
-    inputs: [{ name: "owner", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "previewRedeem",
-    stateMutability: "view",
-    inputs: [{ name: "shares", type: "uint256" }],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "previewMint",
-    stateMutability: "view",
-    inputs: [{ name: "shares", type: "uint256" }],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "deposit",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "assets", type: "uint256" },
-      { name: "receiver", type: "address" },
-    ],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "mint",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "shares", type: "uint256" },
-      { name: "receiver", type: "address" },
-    ],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "withdraw",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "assets", type: "uint256" },
-      { name: "receiver", type: "address" },
-      { name: "owner", type: "address" },
-    ],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "redeem",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "shares", type: "uint256" },
-      { name: "receiver", type: "address" },
-      { name: "owner", type: "address" },
-    ],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "executeStrategy",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "adapter", type: "address" },
-      { name: "data", type: "bytes" },
-    ],
-    outputs: [],
-  },
-] as const;
+];
 
 export function useVaultDetailModel(vaultAddress?: string): VaultDetailModel {
   const chainId = useChainId();
   const capabilities = useProtocolCapabilities();
   const connection = useConnection();
+  const { executeRead } = useProtocolReadExecutor();
   const { executeWrite } = useWriteContracts();
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [vaultDecimalsValue, setVaultDecimals] = useState<number | undefined>();
+  const [mintedShares, setMintedShares] = useState<bigint | undefined>();
+  const [maxWithdraw, setMaxWithdraw] = useState<bigint | undefined>();
+  const [maxRedeem, setMaxRedeem] = useState<bigint | undefined>();
+  const [totalAssets, setTotalAssets] = useState<bigint | undefined>();
+  const [depositedAssets, setDepositedAssets] = useState<bigint | undefined>();
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const resolvedVaultAddress = useMemo(
     () =>
@@ -149,201 +79,148 @@ export function useVaultDetailModel(vaultAddress?: string): VaultDetailModel {
     [vaultAddress],
   );
 
-  const vaultRegistryConfig = useMemo(() => {
-    return resolveOptionalContract(chainId, getVaultRegistryContract);
-  }, [chainId]);
+  const vaultDetailProtocolContext: VaultDetailProtocolContext = {
+    vaultAddress: resolvedVaultAddress,
+  };
 
-  const protocolCoreConfig = useMemo(() => {
-    return resolveOptionalContract(chainId, getProtocolCoreContract);
-  }, [chainId]);
-
-  const riskManagerConfig = useMemo(() => {
-    return resolveOptionalContract(chainId, getRiskManagerContract);
-  }, [chainId]);
-
-  const { data: registryAndControlData, refetch: refetchRegistryAndControl } = useReadContracts({
-    allowFailure: true,
-    contracts:
-      resolvedVaultAddress &&
-      vaultRegistryConfig &&
-      protocolCoreConfig &&
-      riskManagerConfig
-        ? [
-            {
-              abi: vaultRegistryConfig.abi,
-              address: vaultRegistryConfig.address,
-              functionName: "getVaultDetail",
-              args: [resolvedVaultAddress],
-            },
-            {
-              abi: protocolCoreConfig.abi,
-              address: protocolCoreConfig.address,
-              functionName: "isVaultDepositsPaused",
-            },
-            {
-              abi: riskManagerConfig.abi,
-              address: riskManagerConfig.address,
-              functionName: "executionPaused",
-            },
-          ]
-        : [],
-    query: {
-      enabled: Boolean(
-        resolvedVaultAddress &&
-          vaultRegistryConfig &&
-          protocolCoreConfig &&
-          riskManagerConfig,
-      ),
-    },
-  });
-
-  const vaultDetail = getReadContractResult<VaultRegistryDetail>(
-    registryAndControlData?.[0],
+  const {
+    vaultDetail,
+    isVaultDepositsPaused,
+    isExecutionPaused,
+    refetch: refetchProtocol,
+  } = useProtocolReads(
+    vaultDetailProtocolDefinitions,
+    vaultDetailProtocolContext,
   );
-  const isVaultDepositsPaused =
-    getReadContractResult<boolean>(registryAndControlData?.[1]) ?? false;
-  const isExecutionPaused =
-    getReadContractResult<boolean>(registryAndControlData?.[2]) ?? false;
 
-  const { data: assetMetadataData, refetch: refetchAssetMetadata } = useReadContracts({
-    allowFailure: true,
-    contracts: vaultDetail?.asset
-      ? [
-          {
-            abi: abiERC20,
-            address: vaultDetail.asset,
-            functionName: "symbol",
-          },
-          {
-            abi: abiERC20,
-            address: vaultDetail.asset,
-            functionName: "decimals",
-          },
-        ]
-      : [],
-    query: {
-      enabled: Boolean(vaultDetail?.asset),
+  const vaultDetailTyped = vaultDetail as VaultRegistryDetail | undefined;
+  const isVaultDepositsPausedTyped =
+    (isVaultDepositsPaused as boolean) ?? false;
+  const isExecutionPausedTyped = (isExecutionPaused as boolean) ?? false;
+
+  const assetDefinitions: ProtocolReadDefinition<'assetSymbol' | 'assetDecimals' | 'assetBalance'>[] = vaultDetailTyped?.asset ? [
+    {
+      key: 'assetSymbol',
+      contract: { abi: abiERC20, address: vaultDetailTyped.asset },
+      functionName: 'symbol',
     },
-  });
-
-  const assetSymbol =
-    getReadContractResult<string>(assetMetadataData?.[0]) ??
-    (vaultDetail?.asset ? formatAddress(vaultDetail.asset) : "—");
-  const assetDecimals =
-    getReadContractResult<number>(assetMetadataData?.[1]) ?? 18;
-
-  const { data: assetBalanceData, refetch: refetchAssetBalance } = useReadContracts({
-    allowFailure: true,
-    contracts:
-      vaultDetail?.asset && connection.address
-        ? [
-            {
-              abi: abiERC20,
-              address: vaultDetail.asset,
-              functionName: "balanceOf",
-              args: [connection.address as Address],
-            },
-          ]
-        : [],
-    query: {
-      enabled: Boolean(vaultDetail?.asset && connection.address),
+    {
+      key: 'assetDecimals',
+      contract: { abi: abiERC20, address: vaultDetailTyped.asset },
+      functionName: 'decimals',
     },
-  });
+    {
+      key: 'assetBalance',
+      contract: { abi: abiERC20, address: vaultDetailTyped.asset },
+      functionName: 'balanceOf',
+      args: connection.address ? [connection.address] : undefined,
+    },
+  ] : [];
 
-  const depositAssetBalanceValue =
-    getReadContractResult<bigint>(assetBalanceData?.[0]) ?? 0n;
+  const assetReads = useProtocolReads(assetDefinitions);
+
+  // Fetch vault data using executeRead
+  useEffect(() => {
+    if (!resolvedVaultAddress || !connection.address) return;
+
+    const fetchVaultData = async () => {
+      try {
+        const decimals = await executeRead({
+          functionName: "decimals",
+          functionContract: "getVaultImplementationContract",
+          args: [],
+        });
+        setVaultDecimals(decimals as number);
+
+        const shares = await executeRead({
+          functionName: "balanceOf",
+          functionContract: "getVaultImplementationContract",
+          args: [connection.address],
+        });
+        setMintedShares(shares as bigint);
+
+        const maxW = await executeRead({
+          functionName: "maxWithdraw",
+          functionContract: "getVaultImplementationContract",
+          args: [connection.address],
+        });
+        setMaxWithdraw(maxW as bigint);
+
+        const maxR = await executeRead({
+          functionName: "maxRedeem",
+          functionContract: "getVaultImplementationContract",
+          args: [connection.address],
+        });
+        setMaxRedeem(maxR as bigint);
+
+        const totalA = await executeRead({
+          functionName: "totalAssets",
+          functionContract: "getVaultImplementationContract",
+          args: [],
+        });
+        setTotalAssets(totalA as bigint);
+      } catch (error) {
+        console.error("Error fetching vault data:", error);
+      }
+    };
+
+    fetchVaultData();
+  }, [resolvedVaultAddress, connection.address, executeRead, refreshTrigger]);
+
+  // Fetch preview data
+  useEffect(() => {
+    if (!resolvedVaultAddress || !mintedShares || mintedShares <= 0n) return;
+
+    const fetchPreviewData = async () => {
+      try {
+        const deposited = await executeRead({
+          functionName: "previewRedeem",
+          functionContract: "getVaultImplementationContract",
+          args: [mintedShares],
+        });
+        setDepositedAssets(deposited as bigint);
+      } catch (error) {
+        console.error("Error fetching preview data:", error);
+      }
+    };
+
+    fetchPreviewData();
+  }, [resolvedVaultAddress, mintedShares, executeRead, refreshTrigger]);
+
+  const mintedSharesValueTyped = mintedShares ?? 0n;
+
+  // Extract values
+  const assetSymbolTyped = assetReads.assetSymbol as string | undefined;
+  const assetDecimalsTyped = assetReads.assetDecimals as number | undefined ?? 18;
+  const assetBalanceTyped = assetReads.assetBalance as bigint | undefined ?? 0n;
+  const vaultDecimalsTyped = vaultDecimalsValue ?? assetDecimalsTyped;
+  const maxWithdrawValueTyped = maxWithdraw ?? 0n;
+  const maxRedeemValueTyped = maxRedeem ?? 0n;
+  const totalAssetsValueTyped = totalAssets ?? 0n;
+  const depositedAssetsValueTyped = depositedAssets ?? 0n;
+
+  // Assign to old variable names for compatibility
+  const assetSymbol = assetSymbolTyped ?? (vaultDetailTyped?.asset ? formatAddress(vaultDetailTyped.asset) : "—");
+  const assetDecimals = assetDecimalsTyped;
+  const depositAssetBalanceValue = assetBalanceTyped;
   const depositAssetBalance = formatTokenAmount(
     depositAssetBalanceValue,
     assetSymbol === "—" ? undefined : assetSymbol,
     assetDecimals,
   );
   const hasDepositAssetBalance = depositAssetBalanceValue > 0n;
+  const vaultDecimals = vaultDecimalsTyped;
+  const mintedSharesValue = mintedSharesValueTyped;
+  const maxWithdrawValue = maxWithdrawValueTyped;
+  const maxRedeemValue = maxRedeemValueTyped;
+  const totalAssetsValue = totalAssetsValueTyped;
+  const depositedAssetsValue = depositedAssetsValueTyped;
 
-  const { data: vaultAccountData, refetch: refetchVaultAccountData } = useReadContracts({
-    allowFailure: true,
-    contracts:
-      resolvedVaultAddress && connection.address
-        ? [
-            {
-              abi: vaultAbi,
-              address: resolvedVaultAddress,
-              functionName: "decimals",
-            },
-            {
-              abi: vaultAbi,
-              address: resolvedVaultAddress,
-              functionName: "balanceOf",
-              args: [connection.address as Address],
-            },
-            {
-              abi: vaultAbi,
-              address: resolvedVaultAddress,
-              functionName: "maxWithdraw",
-              args: [connection.address as Address],
-            },
-            {
-              abi: vaultAbi,
-              address: resolvedVaultAddress,
-              functionName: "maxRedeem",
-              args: [connection.address as Address],
-            },
-          ]
-        : resolvedVaultAddress
-          ? [
-              {
-                abi: vaultAbi,
-                address: resolvedVaultAddress,
-                functionName: "decimals",
-              },
-            ]
-          : [],
-    query: {
-      enabled: Boolean(resolvedVaultAddress),
-    },
-  });
 
-  const { data: vaultTotalAssetsData, refetch: refetchVaultTotalAssets } = useReadContracts({
-    allowFailure: true,
-    contracts: resolvedVaultAddress
-      ? [
-          {
-            abi: vaultAbi,
-            address: resolvedVaultAddress,
-            functionName: "totalAssets",
-          },
-        ]
-      : [],
-    query: {
-      enabled: Boolean(resolvedVaultAddress),
-    },
-  });
 
-  const vaultDecimals = getReadContractResult<number>(vaultAccountData?.[0]) ?? assetDecimals;
-  const mintedSharesValue = getReadContractResult<bigint>(vaultAccountData?.[1]) ?? 0n;
-  const maxWithdrawValue = getReadContractResult<bigint>(vaultAccountData?.[2]) ?? 0n;
-  const maxRedeemValue = getReadContractResult<bigint>(vaultAccountData?.[3]) ?? 0n;
-  const totalAssetsValue = getReadContractResult<bigint>(vaultTotalAssetsData?.[0]) ?? 0n;
 
-  const { data: previewRedeemData, refetch: refetchPreviewRedeem } = useReadContracts({
-    allowFailure: true,
-    contracts:
-      resolvedVaultAddress && connection.address
-        ? [
-            {
-              abi: vaultAbi,
-              address: resolvedVaultAddress,
-              functionName: "previewRedeem",
-              args: [mintedSharesValue],
-            },
-          ]
-        : [],
-    query: {
-      enabled: Boolean(resolvedVaultAddress && connection.address),
-    },
-  });
 
-  const depositedAssetsValue =
-    getReadContractResult<bigint>(previewRedeemData?.[0]) ?? 0n;
+
 
   const aaveAdapterAddress = useMemo(
     () =>
@@ -355,20 +232,18 @@ export function useVaultDetailModel(vaultAddress?: string): VaultDetailModel {
 
   const refreshVaultData = async () => {
     await Promise.allSettled([
-      refetchRegistryAndControl?.(),
-      refetchAssetMetadata?.(),
-      refetchAssetBalance?.(),
-      refetchVaultAccountData?.(),
-      refetchPreviewRedeem?.(),
+      refetchProtocol?.(),
+      assetReads.refetch?.(),
+      setRefreshTrigger(prev => prev + 1),
     ]);
   };
 
   const approveAssetForVault = async (amount: bigint) => {
-    if (!vaultDetail?.asset || !resolvedVaultAddress) return;
+    if (!vaultDetailTyped?.asset || !resolvedVaultAddress) return;
 
     return executeWrite({
       abi: abiERC20,
-      address: vaultDetail.asset,
+      address: vaultDetailTyped.asset,
       functionName: "approve",
       args: [resolvedVaultAddress, amount],
       options: { waitForReceipt: true },
@@ -429,7 +304,12 @@ export function useVaultDetailModel(vaultAddress?: string): VaultDetailModel {
   };
 
   const deposit = async (amount: string): Promise<boolean> => {
-    if (!resolvedVaultAddress || !connection.address || !vaultDetail?.asset) return false;
+    if (
+      !resolvedVaultAddress ||
+      !connection.address ||
+      !vaultDetailTyped?.asset
+    )
+      return false;
 
     const parsedAmount = parseTokenAmount(amount, assetDecimals);
     if (parsedAmount <= 0n) return false;
@@ -440,12 +320,19 @@ export function useVaultDetailModel(vaultAddress?: string): VaultDetailModel {
       async () => {
         const approval = await approveAssetForVault(parsedAmount);
 
-        if (!approval || !("receipt" in approval) || approval.receipt?.status !== "success") {
+        if (
+          !approval ||
+          !("receipt" in approval) ||
+          approval.receipt?.status !== "success"
+        ) {
           throw new Error("Token approval failed.");
         }
 
+        const contract = resolveProtocolContract(chainId, "getVaultImplementationContract");
+        if (!contract) throw new Error("Vault implementation contract not found");
+
         return executeWrite({
-          abi: vaultAbi,
+          abi: contract.abi,
           address: resolvedVaultAddress,
           functionName: "deposit",
           args: [parsedAmount, connection.address as Address],
@@ -456,7 +343,12 @@ export function useVaultDetailModel(vaultAddress?: string): VaultDetailModel {
   };
 
   const mint = async (amount: string): Promise<boolean> => {
-    if (!resolvedVaultAddress || !connection.address || !vaultDetail?.asset) return false;
+    if (
+      !resolvedVaultAddress ||
+      !connection.address ||
+      !vaultDetailTyped?.asset
+    )
+      return false;
 
     const parsedShares = parseTokenAmount(amount, vaultDecimals);
     if (parsedShares <= 0n) return false;
@@ -467,12 +359,19 @@ export function useVaultDetailModel(vaultAddress?: string): VaultDetailModel {
       async () => {
         const approval = await approveAssetForVault(parsedShares);
 
-        if (!approval || !("receipt" in approval) || approval.receipt?.status !== "success") {
+        if (
+          !approval ||
+          !("receipt" in approval) ||
+          approval.receipt?.status !== "success"
+        ) {
           throw new Error("Token approval failed.");
         }
 
+        const contract = resolveProtocolContract(chainId, "getVaultImplementationContract");
+        if (!contract) throw new Error("Vault implementation contract not found");
+
         return executeWrite({
-          abi: vaultAbi,
+          abi: contract.abi,
           address: resolvedVaultAddress,
           functionName: "mint",
           args: [parsedShares, connection.address as Address],
@@ -491,14 +390,22 @@ export function useVaultDetailModel(vaultAddress?: string): VaultDetailModel {
     return executeVaultTransaction(
       "Withdraw assets",
       "Confirm the withdraw transaction in your wallet.",
-      async () =>
-        executeWrite({
-          abi: vaultAbi,
+      async () => {
+        const contract = resolveProtocolContract(chainId, "getVaultImplementationContract");
+        if (!contract) throw new Error("Vault implementation contract not found");
+
+        return executeWrite({
+          abi: contract.abi,
           address: resolvedVaultAddress,
           functionName: "withdraw",
-          args: [parsedAmount, connection.address as Address, connection.address as Address],
+          args: [
+            parsedAmount,
+            connection.address as Address,
+            connection.address as Address,
+          ],
           options: { waitForReceipt: true },
-        }),
+        });
+      },
     );
   };
 
@@ -511,14 +418,22 @@ export function useVaultDetailModel(vaultAddress?: string): VaultDetailModel {
     return executeVaultTransaction(
       "Redeem shares",
       "Confirm the redeem transaction in your wallet.",
-      async () =>
-        executeWrite({
-          abi: vaultAbi,
+      async () => {
+        const contract = resolveProtocolContract(chainId, "getVaultImplementationContract");
+        if (!contract) throw new Error("Vault implementation contract not found");
+
+        return executeWrite({
+          abi: contract.abi,
           address: resolvedVaultAddress,
           functionName: "redeem",
-          args: [parsedShares, connection.address as Address, connection.address as Address],
+          args: [
+            parsedShares,
+            connection.address as Address,
+            connection.address as Address,
+          ],
           options: { waitForReceipt: true },
-        }),
+        });
+      },
     );
   };
 
@@ -544,24 +459,25 @@ export function useVaultDetailModel(vaultAddress?: string): VaultDetailModel {
     }
 
     const encodedData = encodeAbiParameters(
-      [
-        { type: "uint8" },
-        { type: "uint256" },
-      ],
+      [{ type: "uint8" }, { type: "uint256" }],
       [0, maxWithdrawValue],
     );
 
     return executeVaultTransaction(
       "Execute strategy",
       "Confirm the guardian strategy execution in your wallet.",
-      async () =>
-        executeWrite({
-          abi: vaultAbi,
+      async () => {
+        const contract = resolveProtocolContract(chainId, "getVaultImplementationContract");
+        if (!contract) throw new Error("Vault implementation contract not found");
+
+        return executeWrite({
+          abi: contract.abi,
           address: resolvedVaultAddress,
           functionName: "executeStrategy",
           args: [aaveAdapterAddress, encodedData],
           options: { waitForReceipt: true },
-        }),
+        });
+      },
     );
   };
 
@@ -569,10 +485,11 @@ export function useVaultDetailModel(vaultAddress?: string): VaultDetailModel {
     () =>
       Boolean(
         connection.address &&
-          vaultDetail?.guardian &&
-          connection.address.toLowerCase() === vaultDetail.guardian.toLowerCase(),
+        vaultDetailTyped?.guardian &&
+        connection.address.toLowerCase() ===
+          vaultDetailTyped.guardian.toLowerCase(),
       ),
-    [connection.address, vaultDetail?.guardian],
+    [connection.address, vaultDetailTyped?.guardian],
   );
 
   const canShowGuardianOperations =
@@ -581,11 +498,11 @@ export function useVaultDetailModel(vaultAddress?: string): VaultDetailModel {
   const vault: VaultDetailData = {
     address: resolvedVaultAddress ?? vaultAddress ?? "—",
     asset: assetSymbol,
-    guardian: vaultDetail?.guardian ?? "—",
-    status: vaultDetail?.active ? "Active" : "Inactive",
+    guardian: vaultDetailTyped?.guardian ?? "—",
+    status: vaultDetailTyped?.active ? "Active" : "Inactive",
     registeredAt:
-      vaultDetail?.registeredAt != null
-        ? parseTimestamp(Number(vaultDetail.registeredAt))
+      vaultDetailTyped?.registeredAt != null
+        ? parseTimestamp(Number(vaultDetailTyped.registeredAt))
             .toISOString()
             .slice(0, 10)
         : "—",
@@ -603,18 +520,28 @@ export function useVaultDetailModel(vaultAddress?: string): VaultDetailModel {
       assetSymbol === "—" ? undefined : assetSymbol,
       assetDecimals,
     ),
-    mintedShares: formatTokenAmount(mintedSharesValue, undefined, vaultDecimals),
+    mintedShares: formatTokenAmount(
+      mintedSharesValue,
+      undefined,
+      vaultDecimals,
+    ),
     withdrawableAssets: formatTokenAmount(
       maxWithdrawValue,
       assetSymbol === "—" ? undefined : assetSymbol,
       assetDecimals,
     ),
-    redeemableShares: formatTokenAmount(maxRedeemValue, undefined, vaultDecimals),
+    redeemableShares: formatTokenAmount(
+      maxRedeemValue,
+      undefined,
+      vaultDecimals,
+    ),
   };
 
   const controls: VaultDetailControls = {
-    depositsEnabled: !isVaultDepositsPaused && vaultDetail?.active === true,
-    strategyExecutionEnabled: !isExecutionPaused && vaultDetail?.active === true,
+    depositsEnabled:
+      !isVaultDepositsPausedTyped && vaultDetailTyped?.active === true,
+    strategyExecutionEnabled:
+      !isExecutionPausedTyped && vaultDetailTyped?.active === true,
   };
 
   return {

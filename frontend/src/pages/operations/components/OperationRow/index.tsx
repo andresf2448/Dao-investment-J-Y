@@ -2,9 +2,10 @@ interface OperationRowProps {
   title: string;
   description: string;
   primaryAction: string;
-  secondaryAction: string;
+  secondaryAction?: string;
   disablePrimary: boolean;
-  disableSecondary: boolean;
+  disableSecondary?: boolean;
+  statusMessage?: string;
   onPrimaryAction?: () => void;
   onSecondaryAction?: () => void;
 }
@@ -16,6 +17,7 @@ export function OperationRow({
   secondaryAction,
   disablePrimary,
   disableSecondary,
+  statusMessage,
   onPrimaryAction,
   onSecondaryAction,
 }: OperationRowProps) {
@@ -32,14 +34,21 @@ export function OperationRow({
         >
           {primaryAction}
         </button>
-        <button
-          className="btn-secondary disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={disableSecondary}
-          onClick={onSecondaryAction}
-        >
-          {secondaryAction}
-        </button>
+        {secondaryAction ? (
+          <button
+            className="btn-secondary disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={disableSecondary}
+            onClick={onSecondaryAction}
+          >
+            {secondaryAction}
+          </button>
+        ) : null}
       </div>
+      {statusMessage ? (
+        <p className="mt-3 text-sm leading-6 text-text-secondary">
+          {statusMessage}
+        </p>
+      ) : null}
     </div>
   );
 }

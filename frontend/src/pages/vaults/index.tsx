@@ -17,6 +17,7 @@ export default function VaultsPage() {
     availableGuardians,
     filters,
     isVaultDepositsPaused,
+    isVaultCreationPaused,
     metrics,
     guardianRoutingStatus,
     guardianRoutingSubtitle,
@@ -29,6 +30,13 @@ export default function VaultsPage() {
     setStatusFilter,
     capabilities,
   } = useVaultsModel();
+
+  const creationAccessValue = isVaultCreationPaused ? "Paused" : "Enabled";
+  const creationSummaryStatus = isVaultCreationPaused ? "Paused" : "Available";
+  const creationSummaryTone = isVaultCreationPaused ? "warning" : "success";
+  const creationAssetsDescription = isVaultCreationPaused
+    ? "New vault creation is paused by ProtocolCore, so no new vaults can be deployed right now."
+    : "New vaults can be created and deployed while protocol creation remains enabled.";
 
   const depositAccessValue = isVaultDepositsPaused ? "Paused" : "Enabled";
   const depositSummaryStatus = isVaultDepositsPaused ? "Paused" : "Available";
@@ -258,6 +266,12 @@ export default function VaultsPage() {
 
           <div className="card-content space-y-4">
             <SummaryRow
+              title="Vault Creation"
+              description={creationAssetsDescription}
+              status={creationSummaryStatus}
+              tone={creationSummaryTone}
+            />
+            <SummaryRow
               title="Deposit Assets"
               description={depositAssetsDescription}
               status={depositSummaryStatus}
@@ -319,7 +333,7 @@ export default function VaultsPage() {
               </p>
             </div>
 
-            {true ? (
+            {capabilities.canCreateVault ? (
               <Link
                 to="/vaults/guardian-tools"
                 className={[

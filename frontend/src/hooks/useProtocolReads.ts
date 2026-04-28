@@ -11,12 +11,14 @@ type ProtocolReadArgs<TContext> =
   | readonly unknown[]
   | ((context: TContext) => readonly unknown[] | undefined);
 
+type ProtocolContractSpec = ProtocolContractGetterName | { abi: Abi; address: Address } | { functionContract: ProtocolContractGetterName; address: Address };
+
 export type ProtocolReadDefinition<
   TKey extends string = string,
   TContext = void,
 > = {
   key: TKey;
-  contract: ProtocolContractGetterName;
+  contract: ProtocolContractSpec;
   functionName: string;
   args?: ProtocolReadArgs<TContext>;
 };
@@ -39,7 +41,7 @@ export type ProtocolReadsHookResult<TKey extends string> =
 
 type ResolvedProtocolReadDefinition<TKey extends string = string> = {
   key: TKey;
-  contract: ProtocolContractGetterName;
+  contract: ProtocolContractSpec;
   functionName: string;
   args?: readonly unknown[];
 };
@@ -101,9 +103,20 @@ export function useProtocolReads<TKey extends string, TContext = void>(
 
     const resolvedContracts = resolvedDefinitions
       .map((definition) => {
-        const contract = resolveProtocolContract(chainId, definition.contract);
+        let contract: { abi: Abi; address: Address } | undefined;
 
-        if (!contract) {
+        if (typeof definition.contract === 'string') {
+          contract = resolveProtocolContract(chainId, definition.contract);
+        } else if ('functionContract' in definition.contract) {
+          const resolved = resolveProtocolContract(chainId, definition.contract.functionContract);
+          if (resolved) {
+            contract = { ...resolved, address: definition.contract.address };
+          }
+        } else {
+          contract = definition.contract;
+        }
+
+        if (!contract || !contract.address) {
           return undefined;
         }
 

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { isAddress, type Address } from "viem";
-import { useChainId, useConnection, useReadContracts } from "wagmi";
+import { useChainId, useConnection } from "wagmi";
 import Swal from "sweetalert2";
 import { getGenesisBondingContract } from "@dao/contracts-sdk";
 

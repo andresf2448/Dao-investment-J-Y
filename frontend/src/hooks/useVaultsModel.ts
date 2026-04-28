@@ -25,6 +25,7 @@ export function useVaultsModel(): VaultsModel {
     vaultCount,
     totalGuardians,
     isDepositsActiveVaults,
+    isCreationActiveVaults,
     listVaults,
   } = useProtocolReads(
     useVaultsModelProtocolReadDefinitions,
@@ -257,6 +258,7 @@ export function useVaultsModel(): VaultsModel {
   }, [totalGuardians, totalVaultsValue, vaults]);
 
   const isVaultDepositsPaused = isDepositsActiveVaults === true;
+  const isVaultCreationPaused = isCreationActiveVaults === true;
   const hasVaultRegistry = Boolean(vaultRegistryConfig);
   const vaultExplorerStatus = hasVaultRegistry
     ? totalVaultsValue > 0
@@ -323,6 +325,7 @@ export function useVaultsModel(): VaultsModel {
     availableAssets,
     availableGuardians,
     isVaultDepositsPaused,
+    isVaultCreationPaused,
     vaultExplorerStatus,
     vaultExplorerSubtitle,
     guardianRoutingStatus,

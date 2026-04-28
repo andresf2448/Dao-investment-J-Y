@@ -165,4 +165,9 @@ export const useVaultsModelProtocolReadDefinitions = [
     contract: "getProtocolCoreContract",
     functionName: "isVaultDepositsPaused",
   },
+  {
+    key: "isCreationActiveVaults",
+    contract: "getProtocolCoreContract",
+    functionName: "isVaultCreationPaused",
+  },
 ] as const satisfies readonly ProtocolReadDefinition<string, void>[];
