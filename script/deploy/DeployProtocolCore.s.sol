@@ -13,16 +13,14 @@ contract DeployProtocolCore is Script {
     address _deployer,
     address[] memory _allowedTokens,
     address _allowedVaultToken
-  )
-    external
-    returns (ProtocolCore)
-  {
+  ) external returns (ProtocolCore) {
     HelperConfig.NetworkConfig memory networkConfig = config.getActiveNetworkConfig();
 
     uint256 deployerPrivateKey = networkConfig.deployerPrivateKey;
     address deployer = _deployer == address(0) ? vm.addr(deployerPrivateKey) : _deployer;
     address[] memory allowedTokens = _allowedTokens.length > 0 ? _allowedTokens : networkConfig.allowedGenesisTokens;
-    address allowedVaultToken = _allowedVaultToken == address(0) ? networkConfig.allowedVaultToken : _allowedVaultToken;
+    address allowedVaultToken =
+      _allowedVaultToken == address(0) ? networkConfig.allowedVaultToken : _allowedVaultToken;
 
     if (_timeLock == address(0)) {
       console.log("Error: TimeLock address required");
@@ -30,14 +28,11 @@ contract DeployProtocolCore is Script {
     }
 
     vm.startBroadcast(deployerPrivateKey);
-      ProtocolCore implementation = new ProtocolCore();
-      ERC1967Proxy proxy = new ERC1967Proxy(
-        address(implementation),
-        abi.encodeCall(
-          ProtocolCore.initialize,
-          (payable(_timeLock), deployer, allowedTokens, allowedVaultToken)
-        )
-      );
+    ProtocolCore implementation = new ProtocolCore();
+    ERC1967Proxy proxy = new ERC1967Proxy(
+      address(implementation),
+      abi.encodeCall(ProtocolCore.initialize, (payable(_timeLock), deployer, allowedTokens, allowedVaultToken))
+    );
     vm.stopBroadcast();
 
     console.log("ProtocolCore deployed at:", address(proxy));

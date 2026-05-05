@@ -8,7 +8,13 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {IVaultRegistry} from "../../contracts/interfaces/vaults/IVaultRegistry.sol";
 
 contract DeployStrategyRouter is Script {
-  function run(HelperConfig config, address _timeLock, address _riskManager, address _vaultRegistry, address _deployer) external returns (StrategyRouter) {
+  function run(
+    HelperConfig config,
+    address _timeLock,
+    address _riskManager,
+    address _vaultRegistry,
+    address _deployer
+  ) external returns (StrategyRouter) {
     HelperConfig.NetworkConfig memory networkConfig = config.getActiveNetworkConfig();
 
     uint256 deployerPrivateKey = networkConfig.deployerPrivateKey;
@@ -20,14 +26,13 @@ contract DeployStrategyRouter is Script {
     }
 
     vm.startBroadcast(deployerPrivateKey);
-      StrategyRouter implementation = new StrategyRouter();
-      ERC1967Proxy proxy = new ERC1967Proxy(
-        address(implementation),
-        abi.encodeCall(
-          StrategyRouter.initialize,
-          (payable(_timeLock), _riskManager, IVaultRegistry(_vaultRegistry))
-        )
-      );
+    StrategyRouter implementation = new StrategyRouter();
+    ERC1967Proxy proxy = new ERC1967Proxy(
+      address(implementation),
+      abi.encodeCall(
+        StrategyRouter.initialize, (payable(_timeLock), _riskManager, IVaultRegistry(_vaultRegistry))
+      )
+    );
     vm.stopBroadcast();
 
     console.log("StrategyRouter deployed at:", address(proxy));

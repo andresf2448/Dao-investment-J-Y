@@ -12,12 +12,7 @@ import {IStrategyRouter} from "../interfaces/execution/IStrategyRouter.sol";
 import {IVaultRegistry} from "../interfaces/vaults/IVaultRegistry.sol";
 import {CommonErrors} from "../libraries/errors/CommonErrors.sol";
 
-contract StrategyRouter is
-  Initializable,
-  AccessControlUpgradeable,
-  UUPSUpgradeable,
-  IStrategyRouter
-{
+contract StrategyRouter is Initializable, AccessControlUpgradeable, UUPSUpgradeable, IStrategyRouter {
   using EnumerableSet for EnumerableSet.AddressSet;
 
   bytes32 public constant ADAPTER_MANAGER_ROLE = keccak256("ADAPTER_MANAGER_ROLE");
@@ -34,18 +29,10 @@ contract StrategyRouter is
   event RiskManagerUpdated(address indexed oldRiskManager, address indexed newRiskManager);
 
   event StrategyExecuted(
-    address indexed vault,
-    address[] adapters,
-    address indexed asset,
-    uint256[] amounts,
-    uint8 action
+    address indexed vault, address[] adapters, address indexed asset, uint256[] amounts, uint8 action
   );
 
-  event DivestStrategy(
-    address indexed vault,
-    address[] adapters,
-    uint256[] amountsToDivest
-  );
+  event DivestStrategy(address indexed vault, address[] adapters, uint256[] amountsToDivest);
 
   error StrategyRouter__AdapterNotAllowed();
   error StrategyRouter__VaultNotActive();
@@ -55,16 +42,11 @@ contract StrategyRouter is
     _disableInitializers();
   }
 
-  function initialize(
-    address adminTimelock,
-    address riskManager_,
-    IVaultRegistry vaultRegistry_
-  ) external initializer {
-    if (
-      adminTimelock == address(0) ||
-      riskManager_ == address(0) ||
-      address(vaultRegistry_) == address(0)
-    ) {
+  function initialize(address adminTimelock, address riskManager_, IVaultRegistry vaultRegistry_)
+    external
+    initializer
+  {
+    if (adminTimelock == address(0) || riskManager_ == address(0) || address(vaultRegistry_) == address(0)) {
       revert CommonErrors.ZeroAddress();
     }
 
@@ -77,10 +59,7 @@ contract StrategyRouter is
     _grantRole(ADAPTER_MANAGER_ROLE, adminTimelock);
   }
 
-  function setAdapterAllowed(
-    address adapter,
-    bool allowed
-  ) external onlyRole(ADAPTER_MANAGER_ROLE) {
+  function setAdapterAllowed(address adapter, bool allowed) external onlyRole(ADAPTER_MANAGER_ROLE) {
     if (adapter == address(0)) revert CommonErrors.ZeroAddress();
 
     if (allowed) {
@@ -100,9 +79,7 @@ contract StrategyRouter is
     return _allowedAdapters.values();
   }
 
-  function setRiskManager(
-    address newRiskManager
-  ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+  function setRiskManager(address newRiskManager) external onlyRole(DEFAULT_ADMIN_ROLE) {
     if (newRiskManager == address(0)) revert CommonErrors.ZeroAddress();
 
     address oldRiskManager = riskManager;
@@ -151,11 +128,10 @@ contract StrategyRouter is
     emit StrategyExecuted(vault, adapters, asset, amountsToInvest, action);
   }
 
-  function divestMultiple(
-    address vault,
-    address[] calldata adapters,
-    uint256[] calldata amountsToDivest
-  ) external override {
+  function divestMultiple(address vault, address[] calldata adapters, uint256[] calldata amountsToDivest)
+    external
+    override
+  {
     if (vault != msg.sender) revert CommonErrors.Unauthorized();
 
     uint256 length = adapters.length;
@@ -209,7 +185,5 @@ contract StrategyRouter is
     }
   }
 
-  function _authorizeUpgrade(
-    address newImplementation
-  ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+  function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 }

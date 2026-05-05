@@ -11,7 +11,10 @@ contract DeployDaoGovernor is Script {
   uint32 internal constant ANVIL_VOTING_PERIOD = 20;
   uint32 internal constant DEFAULT_VOTING_PERIOD = 45818;
 
-  function run(HelperConfig config, address _governanceToken, address _timeLock, address _deployer) external returns (DaoGovernor) {
+  function run(HelperConfig config, address _governanceToken, address _timeLock, address _deployer)
+    external
+    returns (DaoGovernor)
+  {
     HelperConfig.NetworkConfig memory networkConfig = config.getActiveNetworkConfig();
 
     uint256 deployerPrivateKey = networkConfig.deployerPrivateKey;
@@ -24,13 +27,13 @@ contract DeployDaoGovernor is Script {
     }
 
     vm.startBroadcast(deployerPrivateKey);
-      DaoGovernor daoGovernor = new DaoGovernor({
-        governanceToken: IVotes(_governanceToken),
-        timelock: TimeLock(payable(_timeLock)),
-        minProposalThreshold_: 1000e18,
-        minVotingDelay_: 1,
-        minVotingPeriod_: votingPeriod
-      });
+    DaoGovernor daoGovernor = new DaoGovernor({
+      governanceToken: IVotes(_governanceToken),
+      timelock: TimeLock(payable(_timeLock)),
+      minProposalThreshold_: 1000e18,
+      minVotingDelay_: 1,
+      minVotingPeriod_: votingPeriod
+    });
     vm.stopBroadcast();
 
     console.log("DaoGovernor deployed at:", address(daoGovernor));

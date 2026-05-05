@@ -13,7 +13,7 @@ contract DeployGovernanceToken is Script {
     address deployer = _deployer == address(0) ? vm.addr(deployerPrivateKey) : _deployer;
 
     vm.startBroadcast(deployerPrivateKey);
-      GovernanceToken governanceToken = new GovernanceToken(deployer);
+    GovernanceToken governanceToken = new GovernanceToken(deployer);
     vm.stopBroadcast();
 
     console.log("GovernanceToken deployed at:", address(governanceToken));

@@ -10,11 +10,7 @@ interface IStrategyRouter {
     uint8 action
   ) external;
 
-  function divestMultiple(
-    address vault,
-    address[] calldata adapters,
-    uint256[] calldata amountsToDivest
-  ) external;
+  function divestMultiple(address vault, address[] calldata adapters, uint256[] calldata amountsToDivest) external;
 
   function isAdapterAllowed(address adapter) external view returns (bool);
 

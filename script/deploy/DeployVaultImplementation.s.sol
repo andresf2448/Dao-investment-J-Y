@@ -13,7 +13,7 @@ contract DeployVaultImplementation is Script {
     _deployer == address(0) ? vm.addr(deployerPrivateKey) : _deployer;
 
     vm.startBroadcast(deployerPrivateKey);
-      VaultImplementation vaultImplementation = new VaultImplementation();
+    VaultImplementation vaultImplementation = new VaultImplementation();
     vm.stopBroadcast();
 
     console.log("VaultImplementation deployed at:", address(vaultImplementation));

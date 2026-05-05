@@ -9,23 +9,21 @@ import {MockCompoundComet} from "../../test/mocks/MockCompoundComet.sol";
 import {MockV3AggregatorLocal} from "../../test/mocks/MockV3AggregatorLocal.sol";
 
 contract DeployMocks is Script {
-  function run() external returns (
-    address mockERC20,
-    address mockAavePool,
-    address mockCompoundComet,
-    address mockV3Aggregator
-  ) {
+  function run()
+    external
+    returns (address mockERC20, address mockAavePool, address mockCompoundComet, address mockV3Aggregator)
+  {
     HelperConfig config = new HelperConfig();
     HelperConfig.NetworkConfig memory networkConfig = config.getActiveNetworkConfig();
 
     uint256 deployerPrivateKey = networkConfig.deployerPrivateKey;
 
     vm.startBroadcast(deployerPrivateKey);
-      MockERC20 mockERC20Instance = new MockERC20("USDTGenesis", "USDTG", 18);
-      MockERC20 unlinkedTestToken = new MockERC20("StandaloneTestToken", "STAND", 18);
-      MockAavePool mockAavePoolInstance = new MockAavePool();
-      MockCompoundComet mockCompoundCometInstance = new MockCompoundComet();
-      MockV3AggregatorLocal mockV3AggregatorInstance = new MockV3AggregatorLocal(8, 1e8);
+    MockERC20 mockERC20Instance = new MockERC20("USDTGenesis", "USDTG", 18);
+    MockERC20 unlinkedTestToken = new MockERC20("StandaloneTestToken", "STAND", 18);
+    MockAavePool mockAavePoolInstance = new MockAavePool();
+    MockCompoundComet mockCompoundCometInstance = new MockCompoundComet();
+    MockV3AggregatorLocal mockV3AggregatorInstance = new MockV3AggregatorLocal(8, 1e8);
     vm.stopBroadcast();
 
     console.log("USDTGenesis deployed at:", address(mockERC20Instance));

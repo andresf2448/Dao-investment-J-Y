@@ -52,25 +52,24 @@ contract GuardianAdministrator {
   error GuardianAdministrator__NotGuardianExists();
 
   modifier onlyTimelock() {
-    if(msg.sender != timelock) {
+    if (msg.sender != timelock) {
       revert CommonErrors.Unauthorized();
     }
     _;
   }
 
-  constructor(
-    IGovernor governor_,
-    address timelock_,
-    uint256 minStake_
-  ) {
-    if (address(governor_) == address(0))
+  constructor(IGovernor governor_, address timelock_, uint256 minStake_) {
+    if (address(governor_) == address(0)) {
       revert CommonErrors.ZeroAddress();
+    }
 
-    if (timelock_ == address(0))
+    if (timelock_ == address(0)) {
       revert CommonErrors.ZeroAddress();
+    }
 
-    if (minStake_ == 0)
+    if (minStake_ == 0) {
       revert CommonErrors.ZeroAmount();
+    }
 
     governor = governor_;
     timelock = timelock_;
@@ -78,8 +77,9 @@ contract GuardianAdministrator {
   }
 
   function setBondEscrow(IGuardianBondEscrow bondEscrow_) external onlyTimelock {
-    if (address(bondEscrow_) == address(0))
+    if (address(bondEscrow_) == address(0)) {
       revert CommonErrors.ZeroAddress();
+    }
     bondEscrow = bondEscrow_;
   }
 
@@ -94,14 +94,16 @@ contract GuardianAdministrator {
   }
 
   function applyGuardian() external {
-    if(address(bondEscrow) == address(0))
+    if (address(bondEscrow) == address(0)) {
       revert CommonErrors.ZeroAddress();
+    }
 
     address sender = msg.sender;
     GuardianDetail storage guardian = guardians[sender];
 
-    if (guardian.status != Status.Inactive)
+    if (guardian.status != Status.Inactive) {
       revert GuardianAdministrator__AlreadyApplied();
+    }
 
     guardian.status = Status.Pending;
     guardian.balance = minStake;
@@ -117,19 +119,10 @@ contract GuardianAdministrator {
     values[0] = 0;
     calldatas[0] = abi.encodeCall(this.guardianApprove, (sender));
 
-    string memory description = string.concat(
-      "Guardian application: ",
-      sender.toHexString(),
-      " block: ",
-      block.number.toString()
-    );
+    string memory description =
+      string.concat("Guardian application: ", sender.toHexString(), " block: ", block.number.toString());
 
-    uint256 proposalId = governor.propose(
-      targets,
-      values,
-      calldatas,
-      description
-    );
+    uint256 proposalId = governor.propose(targets, values, calldatas, description);
 
     guardian.proposalId = proposalId;
 
@@ -160,14 +153,11 @@ contract GuardianAdministrator {
       revert GuardianAdministrator__NoPendingApplication();
     }
 
-    IGovernor.ProposalState state = governor.state(
-      guardianDetail.proposalId
-    );
+    IGovernor.ProposalState state = governor.state(guardianDetail.proposalId);
 
     if (
-      state != IGovernor.ProposalState.Defeated &&
-      state != IGovernor.ProposalState.Canceled &&
-      state != IGovernor.ProposalState.Expired
+      state != IGovernor.ProposalState.Defeated && state != IGovernor.ProposalState.Canceled
+        && state != IGovernor.ProposalState.Expired
     ) {
       revert GuardianAdministrator__ProposalStillActive();
     }
@@ -240,11 +230,7 @@ contract GuardianAdministrator {
     emit MinStakeUpdated(oldStake, newMinStake);
   }
 
-  function getGuardianDetail(address guardian)
-    external
-    view
-    returns (GuardianDetail memory)
-  {
+  function getGuardianDetail(address guardian) external view returns (GuardianDetail memory) {
     GuardianDetail storage guardianDetail = guardians[guardian];
 
     if (guardianDetail.status == Status.Inactive) {
@@ -254,11 +240,7 @@ contract GuardianAdministrator {
     return guardianDetail;
   }
 
-  function getProposalState(address guardian)
-    external
-    view
-    returns (IGovernor.ProposalState)
-  {
+  function getProposalState(address guardian) external view returns (IGovernor.ProposalState) {
     GuardianDetail storage guardianDetail = guardians[guardian];
 
     if (guardianDetail.status != Status.Pending) {
@@ -268,11 +250,7 @@ contract GuardianAdministrator {
     return governor.state(guardianDetail.proposalId);
   }
 
-  function isActiveGuardian(address guardian)
-    external
-    view
-    returns (bool)
-  {
+  function isActiveGuardian(address guardian) external view returns (bool) {
     return guardians[guardian].status == Status.Active;
   }
 

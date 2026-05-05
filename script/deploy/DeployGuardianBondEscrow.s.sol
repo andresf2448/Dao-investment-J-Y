@@ -7,7 +7,14 @@ import {GuardianBondEscrow} from "../../contracts/guardians/GuardianBondEscrow.s
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract DeployGuardianBondEscrow is Script {
-  function run(HelperConfig config, address _treasury, address _guardianAdmin, address _timeLock, address _token, address _deployer) external returns (GuardianBondEscrow) {
+  function run(
+    HelperConfig config,
+    address _treasury,
+    address _guardianAdmin,
+    address _timeLock,
+    address _token,
+    address _deployer
+  ) external returns (GuardianBondEscrow) {
     HelperConfig.NetworkConfig memory networkConfig = config.getActiveNetworkConfig();
 
     uint256 deployerPrivateKey = networkConfig.deployerPrivateKey;
@@ -20,12 +27,12 @@ contract DeployGuardianBondEscrow is Script {
     }
 
     vm.startBroadcast(deployerPrivateKey);
-      GuardianBondEscrow guardianBondEscrow = new GuardianBondEscrow({
-        guardianApplicationToken_: IERC20(token),
-        treasury_: payable(_treasury),
-        adminTimelock: payable(_timeLock),
-        guardianAdministrator_: _guardianAdmin
-      });
+    GuardianBondEscrow guardianBondEscrow = new GuardianBondEscrow({
+      guardianApplicationToken_: IERC20(token),
+      treasury_: payable(_treasury),
+      adminTimelock: payable(_timeLock),
+      guardianAdministrator_: _guardianAdmin
+    });
     vm.stopBroadcast();
 
     console.log("GuardianBondEscrow deployed at:", address(guardianBondEscrow));

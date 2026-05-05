@@ -18,18 +18,11 @@ contract GuardianBondEscrow is IGuardianBondEscrow, AccessControl {
 
   mapping(address => uint256) private _bonded;
 
-  event GuardianAdministratorSet(
-    address indexed oldGuardianAdministrator,
-    address indexed newGuardianAdministrator
-  );
+  event GuardianAdministratorSet(address indexed oldGuardianAdministrator, address indexed newGuardianAdministrator);
   event BondLocked(address indexed guardian, uint256 amount);
   event BondRefunded(address indexed guardian, uint256 amount);
   event BondReleasedOnResign(address indexed guardian, uint256 amount);
-  event BondSlashedToTreasury(
-    address indexed guardian,
-    uint256 amount,
-    address indexed treasury
-  );
+  event BondSlashedToTreasury(address indexed guardian, uint256 amount, address indexed treasury);
 
   error GuardianBondEscrow__InsufficientBond();
   error GuardianBondEscrow__SameGuardianAdministrator();
@@ -61,10 +54,7 @@ contract GuardianBondEscrow is IGuardianBondEscrow, AccessControl {
     _grantRole(GUARDIAN_ADMINISTRATOR_ROLE, guardianAdministrator_);
   }
 
-  function setGuardianAdministrator(address newGuardianAdministrator_)
-    external
-    onlyRole(DEFAULT_ADMIN_ROLE)
-  {
+  function setGuardianAdministrator(address newGuardianAdministrator_) external onlyRole(DEFAULT_ADMIN_ROLE) {
     if (newGuardianAdministrator_ == address(0)) {
       revert CommonErrors.ZeroAddress();
     }
@@ -80,16 +70,10 @@ contract GuardianBondEscrow is IGuardianBondEscrow, AccessControl {
 
     guardianAdministrator = newGuardianAdministrator_;
 
-    emit GuardianAdministratorSet(
-      oldGuardianAdministrator,
-      newGuardianAdministrator_
-    );
+    emit GuardianAdministratorSet(oldGuardianAdministrator, newGuardianAdministrator_);
   }
 
-  function lock(address guardian, uint256 amount)
-    external
-    onlyRole(GUARDIAN_ADMINISTRATOR_ROLE)
-  {
+  function lock(address guardian, uint256 amount) external onlyRole(GUARDIAN_ADMINISTRATOR_ROLE) {
     if (guardian == address(0)) revert CommonErrors.ZeroAddress();
     if (amount == 0) revert CommonErrors.ZeroAmount();
 
@@ -99,10 +83,7 @@ contract GuardianBondEscrow is IGuardianBondEscrow, AccessControl {
     emit BondLocked(guardian, amount);
   }
 
-  function refund(address guardian, uint256 amount)
-    external
-    onlyRole(GUARDIAN_ADMINISTRATOR_ROLE)
-  {
+  function refund(address guardian, uint256 amount) external onlyRole(GUARDIAN_ADMINISTRATOR_ROLE) {
     if (guardian == address(0)) revert CommonErrors.ZeroAddress();
     if (amount == 0) revert CommonErrors.ZeroAmount();
 
@@ -115,10 +96,7 @@ contract GuardianBondEscrow is IGuardianBondEscrow, AccessControl {
     emit BondRefunded(guardian, amount);
   }
 
-  function releaseOnResign(address guardian, uint256 amount)
-    external
-    onlyRole(GUARDIAN_ADMINISTRATOR_ROLE)
-  {
+  function releaseOnResign(address guardian, uint256 amount) external onlyRole(GUARDIAN_ADMINISTRATOR_ROLE) {
     if (guardian == address(0)) revert CommonErrors.ZeroAddress();
     if (amount == 0) revert CommonErrors.ZeroAmount();
 
@@ -131,10 +109,7 @@ contract GuardianBondEscrow is IGuardianBondEscrow, AccessControl {
     emit BondReleasedOnResign(guardian, amount);
   }
 
-  function slashToTreasury(address guardian, uint256 amount)
-    external
-    onlyRole(GUARDIAN_ADMINISTRATOR_ROLE)
-  {
+  function slashToTreasury(address guardian, uint256 amount) external onlyRole(GUARDIAN_ADMINISTRATOR_ROLE) {
     if (guardian == address(0)) revert CommonErrors.ZeroAddress();
     if (amount == 0) revert CommonErrors.ZeroAmount();
 
@@ -147,11 +122,7 @@ contract GuardianBondEscrow is IGuardianBondEscrow, AccessControl {
     emit BondSlashedToTreasury(guardian, amount, treasury);
   }
 
-  function getApplicationTokenBalance()
-    external
-    view
-    returns (uint256)
-  {
+  function getApplicationTokenBalance() external view returns (uint256) {
     return guardianApplicationToken.balanceOf(address(this));
   }
 }

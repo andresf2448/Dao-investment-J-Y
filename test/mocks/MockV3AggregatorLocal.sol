@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.33;
 
-import {AggregatorV3Interface} from "../../lib/chainlink-brownie-contracts/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+import {
+  AggregatorV3Interface
+} from "../../lib/chainlink-brownie-contracts/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 
 contract MockV3AggregatorLocal is AggregatorV3Interface {
   uint8 private _decimals;
@@ -46,19 +48,11 @@ contract MockV3AggregatorLocal is AggregatorV3Interface {
     return 1;
   }
 
-  function getRoundData(
-    uint80
-  )
+  function getRoundData(uint80)
     external
     view
     override
-    returns (
-      uint80 roundId,
-      int256 answer,
-      uint256 startedAt,
-      uint256 updatedAt,
-      uint80 answeredInRound
-    )
+    returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
   {
     roundId = _roundId;
     answer = _answer;
@@ -71,13 +65,7 @@ contract MockV3AggregatorLocal is AggregatorV3Interface {
     external
     view
     override
-    returns (
-      uint80 roundId,
-      int256 answer,
-      uint256 startedAt,
-      uint256 updatedAt,
-      uint80 answeredInRound
-    )
+    returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
   {
     roundId = _roundId;
     answer = _answer;

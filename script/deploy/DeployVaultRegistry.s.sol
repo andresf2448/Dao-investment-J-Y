@@ -18,9 +18,7 @@ contract DeployVaultRegistry is Script {
     }
 
     vm.startBroadcast(deployerPrivateKey);
-      VaultRegistry vaultRegistry = new VaultRegistry({
-        adminTimelock: payable(_timeLock)
-      });
+    VaultRegistry vaultRegistry = new VaultRegistry({adminTimelock: payable(_timeLock)});
     vm.stopBroadcast();
 
     console.log("VaultRegistry deployed at:", address(vaultRegistry));

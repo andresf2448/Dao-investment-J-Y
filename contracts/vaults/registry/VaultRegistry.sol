@@ -21,17 +21,9 @@ contract VaultRegistry is AccessControl {
   mapping(address vault => bool) public isRegistered;
   address[] private allVaults;
 
-  event VaultRegistered(
-    address indexed vault,
-    address indexed guardian,
-    address indexed asset,
-    uint256 registeredAt
-  );
+  event VaultRegistered(address indexed vault, address indexed guardian, address indexed asset, uint256 registeredAt);
 
-  event VaultDeactivated(
-    address indexed vault,
-    uint256 deactivatedAt
-  );
+  event VaultDeactivated(address indexed vault, uint256 deactivatedAt);
 
   error VaultRegistry__AlreadyRegistered();
   error VaultRegistry__PairAlreadyExists();
@@ -40,30 +32,24 @@ contract VaultRegistry is AccessControl {
   error VaultRegistry__NotVaultGuardian();
 
   constructor(address adminTimelock) {
-    if(adminTimelock == address(0)) revert CommonErrors.ZeroAddress();
+    if (adminTimelock == address(0)) revert CommonErrors.ZeroAddress();
 
     _grantRole(DEFAULT_ADMIN_ROLE, adminTimelock);
   }
 
   function setFactory(address factory) external onlyRole(DEFAULT_ADMIN_ROLE) {
-    if(factory == address(0)) revert CommonErrors.ZeroAddress();
+    if (factory == address(0)) revert CommonErrors.ZeroAddress();
     grantRole(FACTORY_ROLE, factory);
   }
 
-  function registerVault(
-    address vault,
-    address guardian,
-    address asset
-  )
-    external
-    onlyRole(FACTORY_ROLE)
-  {
+  function registerVault(address vault, address guardian, address asset) external onlyRole(FACTORY_ROLE) {
     if (vault == address(0)) revert CommonErrors.ZeroAddress();
     if (guardian == address(0)) revert CommonErrors.ZeroAddress();
     if (asset == address(0)) revert CommonErrors.ZeroAddress();
     if (isRegistered[vault]) revert VaultRegistry__AlreadyRegistered();
-    if (vaultByAssetGuardian[asset][guardian] != address(0))
+    if (vaultByAssetGuardian[asset][guardian] != address(0)) {
       revert VaultRegistry__PairAlreadyExists();
+    }
 
     isRegistered[vault] = true;
     vaultsByAsset[asset].push(vault);
@@ -71,12 +57,8 @@ contract VaultRegistry is AccessControl {
     vaultByAssetGuardian[asset][guardian] = vault;
     allVaults.push(vault);
 
-    vaultDetails[vault] = VaultDetail({
-      guardian: guardian,
-      asset: asset,
-      registeredAt: uint48(block.timestamp),
-      active: true
-    });
+    vaultDetails[vault] =
+      VaultDetail({guardian: guardian, asset: asset, registeredAt: uint48(block.timestamp), active: true});
 
     emit VaultRegistered(vault, guardian, asset, block.timestamp);
   }
@@ -100,75 +82,41 @@ contract VaultRegistry is AccessControl {
     emit VaultDeactivated(vault, block.timestamp);
   }
 
-  function getVaultDetail(address vault)
-    external
-    view
-    returns(VaultDetail memory)
-  {
-    if(!isRegistered[vault]) revert VaultRegistry__VaultNotRegistered();
+  function getVaultDetail(address vault) external view returns (VaultDetail memory) {
+    if (!isRegistered[vault]) revert VaultRegistry__VaultNotRegistered();
     return vaultDetails[vault];
   }
 
-  function getVaultByAssetAndGuardian(
-    address asset,
-    address guardian
-  ) external view returns(address) {
+  function getVaultByAssetAndGuardian(address asset, address guardian) external view returns (address) {
     return vaultByAssetGuardian[asset][guardian];
   }
 
-  function isActiveVault(address vault)
-    external
-    view
-    returns(bool)
-  {
-    if(!isRegistered[vault]) return false;
+  function isActiveVault(address vault) external view returns (bool) {
+    if (!isRegistered[vault]) return false;
     return vaultDetails[vault].active;
   }
 
-  function getVaultsByAsset(address asset)
-    external
-    view
-    returns(address[] memory)
-  {
+  function getVaultsByAsset(address asset) external view returns (address[] memory) {
     return vaultsByAsset[asset];
   }
 
-  function getVaultsByGuardian(address guardian)
-    external
-    view
-    returns(address[] memory)
-  {
+  function getVaultsByGuardian(address guardian) external view returns (address[] memory) {
     return vaultsByGuardian[guardian];
   }
 
-  function getAllVaults()
-    external
-    view returns(address[] memory)
-  {
+  function getAllVaults() external view returns (address[] memory) {
     return allVaults;
   }
 
-  function totalVaults()
-    external
-    view
-    returns(uint256)
-  {
+  function totalVaults() external view returns (uint256) {
     return allVaults.length;
   }
 
-  function totalVaultsByAsset(address asset)
-    external
-    view
-    returns(uint256)
-  {
+  function totalVaultsByAsset(address asset) external view returns (uint256) {
     return vaultsByAsset[asset].length;
   }
 
-  function totalVaultsByGuardian(address guardian)
-    external
-    view
-    returns(uint256)
-  {
+  function totalVaultsByGuardian(address guardian) external view returns (uint256) {
     return vaultsByGuardian[guardian].length;
   }
 }

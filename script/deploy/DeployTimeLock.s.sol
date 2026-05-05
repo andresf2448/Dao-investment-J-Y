@@ -20,12 +20,8 @@ contract DeployTimeLock is Script {
     executors[0] = deployer;
 
     vm.startBroadcast(deployerPrivateKey);
-      TimeLock timeLock = new TimeLock({
-        minDelay: minDelay,
-        proposers: proposers,
-        executors: executors,
-        admin: deployer
-      });
+    TimeLock timeLock =
+      new TimeLock({minDelay: minDelay, proposers: proposers, executors: executors, admin: deployer});
     vm.stopBroadcast();
 
     console.log("TimeLock deployed at:", address(timeLock));

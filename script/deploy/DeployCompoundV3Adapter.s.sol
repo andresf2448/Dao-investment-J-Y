@@ -6,12 +6,7 @@ import {HelperConfig} from "./HelperConfig.s.sol";
 import {CompoundV3Adapter} from "../../contracts/adapters/compound/CompoundV3Adapter.sol";
 
 contract DeployCompoundV3Adapter is Script {
-  function run(
-    HelperConfig config,
-    address _strategyRouter,
-    address _comet,
-    address _deployer
-  )
+  function run(HelperConfig config, address _strategyRouter, address _comet, address _deployer)
     external
     returns (CompoundV3Adapter)
   {
@@ -27,10 +22,7 @@ contract DeployCompoundV3Adapter is Script {
     }
 
     vm.startBroadcast(deployerPrivateKey);
-      CompoundV3Adapter compoundV3Adapter = new CompoundV3Adapter({
-        router_: _strategyRouter,
-        comet_: comet
-      });
+    CompoundV3Adapter compoundV3Adapter = new CompoundV3Adapter({router_: _strategyRouter, comet_: comet});
     vm.stopBroadcast();
 
     console.log("CompoundV3Adapter deployed at:", address(compoundV3Adapter));

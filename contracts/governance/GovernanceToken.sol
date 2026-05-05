@@ -13,16 +13,12 @@ contract GovernanceToken is ERC20, EIP712, ERC20Votes, AccessControl {
   event MintingFinished();
   error GovernanceToken__MintingDisabled();
 
-  constructor(address admin)
-    ERC20("GovernanceToken_J&Y", "GVT")
-    EIP712("GovernanceToken_J&Y", "1")
-    AccessControl()
-  {
+  constructor(address admin) ERC20("GovernanceToken_J&Y", "GVT") EIP712("GovernanceToken_J&Y", "1") AccessControl() {
     _grantRole(DEFAULT_ADMIN_ROLE, admin);
   }
 
   function mint(address to, uint256 amount) external onlyRole(MINTER_ROLE) {
-    if(mintingFinished) revert GovernanceToken__MintingDisabled();
+    if (mintingFinished) revert GovernanceToken__MintingDisabled();
     _mint(to, amount);
   }
 
@@ -30,11 +26,8 @@ contract GovernanceToken is ERC20, EIP712, ERC20Votes, AccessControl {
     mintingFinished = true;
     emit MintingFinished();
   }
- 
-  function _update(address from, address to, uint256 value)
-    internal
-    override(ERC20, ERC20Votes)
-  {
+
+  function _update(address from, address to, uint256 value) internal override(ERC20, ERC20Votes) {
     super._update(from, to, value);
   }
 }

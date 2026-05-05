@@ -18,7 +18,7 @@ contract DeployTreasury is Script {
     }
 
     vm.startBroadcast(deployerPrivateKey);
-      Treasury treasury = new Treasury(payable(_timeLock), deployer);
+    Treasury treasury = new Treasury(payable(_timeLock), deployer);
     vm.stopBroadcast();
 
     console.log("Treasury deployed at:", address(treasury));

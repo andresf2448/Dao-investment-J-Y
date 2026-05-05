@@ -68,24 +68,11 @@ contract VaultImplementation is
   event RouterUpdated(address indexed oldRouter, address indexed newRouter);
   event CoreUpdated(address indexed oldCore, address indexed newCore);
 
-  event StrategyExecutionRequest(
-    address indexed guardian,
-    address[] adapters,
-    uint256[] allocationBps
-  );
+  event StrategyExecutionRequest(address indexed guardian, address[] adapters, uint256[] allocationBps);
 
-  event RouterCallExecuted(
-    address indexed target,
-    uint256 value,
-    bytes data,
-    bytes result
-  );
+  event RouterCallExecuted(address indexed target, uint256 value, bytes data, bytes result);
 
-  event RouterTokenApprovalSet(
-    address indexed token,
-    address indexed spender,
-    uint256 amount
-  );
+  event RouterTokenApprovalSet(address indexed token, address indexed spender, uint256 amount);
 
   error VaultImplementation__NotFactory();
   error VaultImplementation__DepositsPaused();
@@ -109,12 +96,8 @@ contract VaultImplementation is
     address core_
   ) external initializer {
     if (
-      asset_ == address(0) ||
-      guardian_ == address(0) ||
-      admin_ == address(0) ||
-      factory_ == address(0) ||
-      router_ == address(0) ||
-      core_ == address(0)
+      asset_ == address(0) || guardian_ == address(0) || admin_ == address(0) || factory_ == address(0)
+        || router_ == address(0) || core_ == address(0)
     ) {
       revert CommonErrors.ZeroAddress();
     }
@@ -167,10 +150,7 @@ contract VaultImplementation is
     _unpause();
   }
 
-  function deposit(
-    uint256 assets,
-    address receiver
-  )
+  function deposit(uint256 assets, address receiver)
     public
     override
     whenNotPaused
@@ -184,10 +164,7 @@ contract VaultImplementation is
     shares = super.deposit(assets, receiver);
   }
 
-  function mint(
-    uint256 shares,
-    address receiver
-  )
+  function mint(uint256 shares, address receiver)
     public
     override
     whenNotPaused
@@ -201,11 +178,7 @@ contract VaultImplementation is
     assets = super.mint(shares, receiver);
   }
 
-  function withdraw(
-    uint256 assets,
-    address receiver,
-    address owner
-  )
+  function withdraw(uint256 assets, address receiver, address owner)
     public
     override
     whenNotPaused
@@ -222,14 +195,9 @@ contract VaultImplementation is
     } else {
       shares = super.withdraw(assets, receiver, owner);
     }
-
   }
 
-  function redeem(
-    uint256 shares,
-    address receiver,
-    address owner
-  )
+  function redeem(uint256 shares, address receiver, address owner)
     public
     override
     whenNotPaused
@@ -246,15 +214,9 @@ contract VaultImplementation is
     } else {
       assets = super.redeem(shares, receiver, owner);
     }
-
   }
 
-  function totalAssets()
-    public
-    view
-    override
-    returns (uint256 total)
-  {
+  function totalAssets() public view override returns (uint256 total) {
     total = IERC20(asset()).balanceOf(address(this));
 
     uint256 length = _vaultActiveAdapters.length();
@@ -265,11 +227,11 @@ contract VaultImplementation is
     }
   }
 
-  function executeStrategy(
-    address[] calldata newAdapters,
-    uint256[] calldata newAllocationBps,
-    uint8 action
-  ) external onlyRole(GUARDIAN_ROLE) whenNotPaused {
+  function executeStrategy(address[] calldata newAdapters, uint256[] calldata newAllocationBps, uint8 action)
+    external
+    onlyRole(GUARDIAN_ROLE)
+    whenNotPaused
+  {
     _executeStrategy(newAdapters, newAllocationBps, action);
   }
 
@@ -277,11 +239,7 @@ contract VaultImplementation is
     _divestStrategy();
   }
 
-  function executeFromRouter(
-    address target,
-    uint256 value,
-    bytes calldata data
-  )
+  function executeFromRouter(address target, uint256 value, bytes calldata data)
     external
     override
     onlyRole(STRATEGY_EXECUTOR_ROLE)
@@ -300,11 +258,11 @@ contract VaultImplementation is
     return returndata;
   }
 
-  function approveTokenFromRouter(
-    address token,
-    address spender,
-    uint256 amount
-  ) external override onlyRole(STRATEGY_EXECUTOR_ROLE) {
+  function approveTokenFromRouter(address token, address spender, uint256 amount)
+    external
+    override
+    onlyRole(STRATEGY_EXECUTOR_ROLE)
+  {
     if (token == address(0) || spender == address(0)) {
       revert CommonErrors.ZeroAddress();
     }
@@ -318,31 +276,15 @@ contract VaultImplementation is
     return _vaultActiveAdapters.values();
   }
 
-  function decimals()
-    public
-    view
-    override(ERC20Upgradeable, ERC4626Upgradeable)
-    returns (uint8)
-  {
+  function decimals() public view override(ERC20Upgradeable, ERC4626Upgradeable) returns (uint8) {
     return ERC20Upgradeable.decimals();
   }
 
-  function supportsInterface(
-    bytes4 interfaceId
-  )
-    public
-    view
-    override(AccessControlUpgradeable)
-    returns (bool)
-  {
+  function supportsInterface(bytes4 interfaceId) public view override(AccessControlUpgradeable) returns (bool) {
     return super.supportsInterface(interfaceId);
   }
 
-  function _executeStrategy(
-    address[] memory newAdapters,
-    uint256[] memory newAllocationBps,
-    uint8 action
-  ) internal {
+  function _executeStrategy(address[] memory newAdapters, uint256[] memory newAllocationBps, uint8 action) internal {
     uint256 adaptersLength = newAdapters.length;
 
     if (adaptersLength == 0 || adaptersLength != newAllocationBps.length) {
@@ -371,10 +313,8 @@ contract VaultImplementation is
         revert VaultImplementation__DuplicatedAdapter();
       }
 
-      listAdapters[adapter] = AdapterAllocation({
-        allocationBps: uint16(allocationBps),
-        status: AdapterStatus.Active
-      });
+      listAdapters[adapter] =
+        AdapterAllocation({allocationBps: uint16(allocationBps), status: AdapterStatus.Active});
 
       _grantRole(STRATEGY_EXECUTOR_ROLE, adapter);
     }
@@ -388,13 +328,7 @@ contract VaultImplementation is
       amountsToInvest[i] = (idleAssets * newAllocationBps[i]) / MAX_BPS;
     }
 
-    IStrategyRouter(router).executeMultiple(
-      address(this),
-      asset(),
-      newAdapters,
-      amountsToInvest,
-      action
-    );
+    IStrategyRouter(router).executeMultiple(address(this), asset(), newAdapters, amountsToInvest, action);
   }
 
   function _rebalanceStrategies() internal {
@@ -415,13 +349,7 @@ contract VaultImplementation is
       amountsToInvest[i] = (idleAssets * allocationBps[i]) / MAX_BPS;
     }
 
-    IStrategyRouter(router).executeMultiple(
-      address(this),
-      asset(),
-      adapters,
-      amountsToInvest,
-      INVEST_ACTION
-    );
+    IStrategyRouter(router).executeMultiple(address(this), asset(), adapters, amountsToInvest, INVEST_ACTION);
   }
 
   function _divestStrategy() internal {
@@ -433,17 +361,10 @@ contract VaultImplementation is
     uint256[] memory amountsToDivest = new uint256[](length);
 
     for (uint256 i = 0; i < length; i++) {
-      amountsToDivest[i] = IStrategyAdapter(adapters[i]).totalAssets(
-        address(this),
-        asset()
-      );
+      amountsToDivest[i] = IStrategyAdapter(adapters[i]).totalAssets(address(this), asset());
     }
 
-    IStrategyRouter(router).divestMultiple(
-      address(this),
-      adapters,
-      amountsToDivest
-    );
+    IStrategyRouter(router).divestMultiple(address(this), adapters, amountsToDivest);
   }
 
   function _clearActiveAdapters() internal {

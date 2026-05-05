@@ -13,32 +13,20 @@ contract Treasury is ReentrancyGuardTransient, AccessControl {
   using SafeERC20 for IERC20;
   using Address for address payable;
 
-  bytes32 public constant SWEEP_NOT_ASSET_DAO_ROLE = keccak256('SWEEP_NOT_ASSET_DAO_ROLE');
+  bytes32 public constant SWEEP_NOT_ASSET_DAO_ROLE = keccak256("SWEEP_NOT_ASSET_DAO_ROLE");
   address public protocolCore;
 
   event NativeReceived(address indexed sender, uint256 amount);
-  event ERC20Withdrawn(
-    address indexed token,
-    address indexed to,
-    uint256 amount
-  );
-  event NativeWithdrawn(
-    address indexed to,
-    uint256 amount
-  );
-  event ExternalCallExecuted(
-    address indexed target,
-    uint256 value,
-    bytes data,
-    bytes result
-  );
+  event ERC20Withdrawn(address indexed token, address indexed to, uint256 amount);
+  event NativeWithdrawn(address indexed to, uint256 amount);
+  event ExternalCallExecuted(address indexed target, uint256 value, bytes data, bytes result);
 
   error Treasury__InsufficientNativeBalance();
   error Treasury__CallFailed();
   error Treasury__InvalidToken();
 
   constructor(address adminTimelock_, address sweepNotAssetDaoRole_) {
-    if(adminTimelock_ == address(0)) revert CommonErrors.ZeroAddress();
+    if (adminTimelock_ == address(0)) revert CommonErrors.ZeroAddress();
     _grantRole(DEFAULT_ADMIN_ROLE, adminTimelock_);
     _grantRole(SWEEP_NOT_ASSET_DAO_ROLE, sweepNotAssetDaoRole_);
   }
@@ -47,23 +35,22 @@ contract Treasury is ReentrancyGuardTransient, AccessControl {
     emit NativeReceived(msg.sender, msg.value);
   }
 
-  function setProtocolCore(address protocolcore_)
-    external
-    onlyRole(DEFAULT_ADMIN_ROLE)
-  {
+  function setProtocolCore(address protocolcore_) external onlyRole(DEFAULT_ADMIN_ROLE) {
     protocolCore = protocolcore_;
   }
 
-  function withdrawDaoERC20(
-    address token,
-    address to,
-    uint256 amount
-  ) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
-    if(!IProtocolCore(protocolCore).hasGenesisToken(token))
+  function withdrawDaoERC20(address token, address to, uint256 amount)
+    external
+    onlyRole(DEFAULT_ADMIN_ROLE)
+    nonReentrant
+  {
+    if (!IProtocolCore(protocolCore).hasGenesisToken(token)) {
       revert Treasury__InvalidToken();
+    }
 
-    if (token == address(0) || to == address(0))
+    if (token == address(0) || to == address(0)) {
       revert CommonErrors.ZeroAddress();
+    }
 
     if (amount == 0) revert CommonErrors.ZeroAmount();
 
@@ -72,21 +59,19 @@ contract Treasury is ReentrancyGuardTransient, AccessControl {
     emit ERC20Withdrawn(token, to, amount);
   }
 
-  function withdrawNotAssetDaoERC20(
-    address token,
-    address to,
-    uint256 amount
-  )
+  function withdrawNotAssetDaoERC20(address token, address to, uint256 amount)
     external
     onlyRole(SWEEP_NOT_ASSET_DAO_ROLE)
     nonReentrant
   {
-    if(IProtocolCore(protocolCore).hasGenesisToken(token))
+    if (IProtocolCore(protocolCore).hasGenesisToken(token)) {
       revert Treasury__InvalidToken();
+    }
 
-    if (token == address(0) || to == address(0))
+    if (token == address(0) || to == address(0)) {
       revert CommonErrors.ZeroAddress();
-    
+    }
+
     if (amount == 0) revert CommonErrors.ZeroAmount();
 
     IERC20(token).safeTransfer(to, amount);
@@ -94,10 +79,7 @@ contract Treasury is ReentrancyGuardTransient, AccessControl {
     emit ERC20Withdrawn(token, to, amount);
   }
 
-  function withdrawDaoNative(
-    address payable to,
-    uint256 amount
-  ) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
+  function withdrawDaoNative(address payable to, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
     if (to == address(0)) revert CommonErrors.ZeroAddress();
     if (amount == 0) revert CommonErrors.ZeroAmount();
     if (address(this).balance < amount) {
@@ -109,12 +91,12 @@ contract Treasury is ReentrancyGuardTransient, AccessControl {
     emit NativeWithdrawn(to, amount);
   }
 
-  function nativeBalance() external view returns(uint256) {
+  function nativeBalance() external view returns (uint256) {
     return address(this).balance;
   }
 
-  function erc20Balance(address token) external view returns(uint256) {
-    if(token == address(0)) revert CommonErrors.ZeroAddress();
+  function erc20Balance(address token) external view returns (uint256) {
+    if (token == address(0)) revert CommonErrors.ZeroAddress();
     return IERC20(token).balanceOf(address(this));
   }
 }

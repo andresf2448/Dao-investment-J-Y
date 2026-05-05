@@ -15,7 +15,9 @@ contract MockAavePool {
     uint256 amount,
     address onBehalfOf,
     uint16 /* referralCode */
-  ) external {
+  )
+    external
+  {
     require(amount > 0, "amount = 0");
 
     IERC20(asset).transferFrom(msg.sender, address(this), amount);
@@ -25,11 +27,7 @@ contract MockAavePool {
     emit Supplied(onBehalfOf, asset, amount);
   }
 
-  function withdraw(
-    address asset,
-    uint256 amount,
-    address to
-  ) external returns (uint256) {
+  function withdraw(address asset, uint256 amount, address to) external returns (uint256) {
     uint256 userBalance = deposits[msg.sender][asset];
     require(userBalance >= amount, "insufficient balance");
 
@@ -42,7 +40,9 @@ contract MockAavePool {
     return amount;
   }
 
-  function getUserAccountData(address /* user */)
+  function getUserAccountData(
+    address /* user */
+  )
     external
     pure
     returns (

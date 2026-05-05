@@ -6,12 +6,7 @@ import {HelperConfig} from "./HelperConfig.s.sol";
 import {AaveV3Adapter} from "../../contracts/adapters/aave/AaveV3Adapter.sol";
 
 contract DeployAaveV3Adapter is Script {
-  function run(
-    HelperConfig config,
-    address _strategyRouter,
-    address _pool,
-    address _deployer
-  ) 
+  function run(HelperConfig config, address _strategyRouter, address _pool, address _deployer)
     external
     returns (AaveV3Adapter)
   {
@@ -27,10 +22,7 @@ contract DeployAaveV3Adapter is Script {
     }
 
     vm.startBroadcast(deployerPrivateKey);
-      AaveV3Adapter aaveV3Adapter = new AaveV3Adapter({
-        router_: _strategyRouter,
-        pool_: pool
-      });
+    AaveV3Adapter aaveV3Adapter = new AaveV3Adapter({router_: _strategyRouter, pool_: pool});
     vm.stopBroadcast();
 
     console.log("AaveV3Adapter deployed at:", address(aaveV3Adapter));

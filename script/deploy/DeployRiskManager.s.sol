@@ -19,14 +19,10 @@ contract DeployRiskManager is Script {
     }
 
     vm.startBroadcast(deployerPrivateKey);
-      RiskManager implementation = new RiskManager();
-      ERC1967Proxy proxy = new ERC1967Proxy(
-        address(implementation),
-        abi.encodeCall(
-          RiskManager.initialize,
-          (payable(_timeLock), deployer)
-        )
-      );
+    RiskManager implementation = new RiskManager();
+    ERC1967Proxy proxy = new ERC1967Proxy(
+      address(implementation), abi.encodeCall(RiskManager.initialize, (payable(_timeLock), deployer))
+    );
     vm.stopBroadcast();
 
     console.log("RiskManager deployed at:", address(proxy));

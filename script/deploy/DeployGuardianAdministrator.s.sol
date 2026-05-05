@@ -8,7 +8,10 @@ import {IGovernor} from "@openzeppelin/contracts/governance/IGovernor.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 contract DeployGuardianAdministrator is Script {
-  function run(HelperConfig config, address _daoGovernor, address _timeLock, address token) external returns (GuardianAdministrator) {
+  function run(HelperConfig config, address _daoGovernor, address _timeLock, address token)
+    external
+    returns (GuardianAdministrator)
+  {
     HelperConfig.NetworkConfig memory networkConfig = config.getActiveNetworkConfig();
 
     uint256 deployerPrivateKey = networkConfig.deployerPrivateKey;
@@ -19,11 +22,11 @@ contract DeployGuardianAdministrator is Script {
     }
 
     vm.startBroadcast(deployerPrivateKey);
-      GuardianAdministrator guardianAdministrator = new GuardianAdministrator({
-        governor_: IGovernor(_daoGovernor),
-        timelock_: _timeLock,
-        minStake_: 100 * (10 ** IERC20Metadata(token).decimals()) // Example: 100 tokens with decimals
-      });
+    GuardianAdministrator guardianAdministrator = new GuardianAdministrator({
+      governor_: IGovernor(_daoGovernor),
+      timelock_: _timeLock,
+      minStake_: 100 * (10 ** IERC20Metadata(token).decimals()) // Example: 100 tokens with decimals
+    });
     vm.stopBroadcast();
 
     console.log("GuardianAdministrator deployed at:", address(guardianAdministrator));

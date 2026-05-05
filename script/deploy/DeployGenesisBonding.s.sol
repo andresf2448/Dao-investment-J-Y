@@ -7,7 +7,13 @@ import {GenesisBonding} from "../../contracts/bootstrap/GenesisBonding.sol";
 import {IGovernanceToken} from "../../contracts/interfaces/governance/IGovernanceToken.sol";
 
 contract DeployGenesisBonding is Script {
-  function run(HelperConfig config, address _governanceToken, address _treasury, address _deployer, address[] memory _allowedTokens) external returns (GenesisBonding) {
+  function run(
+    HelperConfig config,
+    address _governanceToken,
+    address _treasury,
+    address _deployer,
+    address[] memory _allowedTokens
+  ) external returns (GenesisBonding) {
     HelperConfig.NetworkConfig memory networkConfig = config.getActiveNetworkConfig();
 
     uint256 deployerPrivateKey = networkConfig.deployerPrivateKey;
@@ -20,14 +26,14 @@ contract DeployGenesisBonding is Script {
     }
 
     vm.startBroadcast(deployerPrivateKey);
-      GenesisBonding genesisBonding = new GenesisBonding({
-        adminTimelock: deployer,
-        sweepRole: deployer,
-        allowedGenesisTokens: allowedTokens,
-        governanceToken_: IGovernanceToken(_governanceToken),
-        treasury_: payable(_treasury),
-        rate_: 100
-      });
+    GenesisBonding genesisBonding = new GenesisBonding({
+      adminTimelock: deployer,
+      sweepRole: deployer,
+      allowedGenesisTokens: allowedTokens,
+      governanceToken_: IGovernanceToken(_governanceToken),
+      treasury_: payable(_treasury),
+      rate_: 100
+    });
     vm.stopBroadcast();
 
     console.log("GenesisBonding deployed at:", address(genesisBonding));

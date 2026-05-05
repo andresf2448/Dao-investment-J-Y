@@ -15,7 +15,7 @@ contract GenesisBonding is AccessControl, ReentrancyGuardTransient {
 
   EnumerableSet.AddressSet private purchaseTokens;
 
-  bytes32 public constant SWEEP_ROLE = keccak256('SWEEP_ROLE');
+  bytes32 public constant SWEEP_ROLE = keccak256("SWEEP_ROLE");
 
   IGovernanceToken public immutable governanceToken;
   address public immutable treasury;
@@ -23,18 +23,9 @@ contract GenesisBonding is AccessControl, ReentrancyGuardTransient {
   uint256 public totalGovernanceTokenPurchased;
   bool public isFinalized;
 
-  event Finalized(
-    uint256 totalGovernanceTokenPurchased
-  );
-  event Purchased(
-    address indexed buyer,
-    uint256 paymentAmount,
-    uint256 governanceAmount
-  );
-  event Swept(
-    address indexed token,
-    uint256 amount
-  );
+  event Finalized(uint256 totalGovernanceTokenPurchased);
+  event Purchased(address indexed buyer, uint256 paymentAmount, uint256 governanceAmount);
+  event Swept(address indexed token, uint256 amount);
 
   error GenesisBonding__InvalidRate();
   error GenesisBonding__AlreadyFinalized();
@@ -65,8 +56,9 @@ contract GenesisBonding is AccessControl, ReentrancyGuardTransient {
   }
 
   function sweep(address token) external onlyRole(SWEEP_ROLE) {
-    if (purchaseTokens.contains(token) || token == address(governanceToken)) 
+    if (purchaseTokens.contains(token) || token == address(governanceToken)) {
       revert GenesisBonding__TokenNotAllowedToSweep();
+    }
 
     if (token == address(0)) revert CommonErrors.ZeroAddress();
 
@@ -83,8 +75,9 @@ contract GenesisBonding is AccessControl, ReentrancyGuardTransient {
     if (isFinalized) revert GenesisBonding__AlreadyFinalized();
     if (paymentAmount == 0) revert CommonErrors.ZeroAmount();
     if (token == address(0)) revert CommonErrors.ZeroAddress();
-    if (!purchaseTokens.contains(token))
+    if (!purchaseTokens.contains(token)) {
       revert GenesisBonding__InvalidToken();
+    }
 
     uint256 governanceTokenAmount = paymentAmount * rate;
     totalGovernanceTokenPurchased += governanceTokenAmount;

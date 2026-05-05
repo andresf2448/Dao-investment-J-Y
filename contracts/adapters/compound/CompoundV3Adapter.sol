@@ -17,12 +17,7 @@ contract CompoundV3Adapter is IStrategyAdapter {
   ICompoundV3Comet private immutable comet;
   address public immutable router;
 
-  event Executed(
-    address indexed vault,
-    address indexed asset,
-    uint8 indexed action,
-    uint256 amount
-  );
+  event Executed(address indexed vault, address indexed asset, uint8 indexed action, uint256 amount);
 
   error CompoundV3Adapter__NotRouter();
   error CompoundV3Adapter__InvalidAction();
@@ -41,11 +36,7 @@ contract CompoundV3Adapter is IStrategyAdapter {
     comet = ICompoundV3Comet(comet_);
   }
 
-  function execute(
-    address vault,
-    uint8 actionRaw,
-    uint256 amount
-  ) external override onlyRouter {
+  function execute(address vault, uint8 actionRaw, uint256 amount) external override onlyRouter {
     if (vault == address(0)) revert CommonErrors.ZeroAddress();
     if (amount == 0) revert CommonErrors.ZeroAmount();
 
@@ -64,10 +55,7 @@ contract CompoundV3Adapter is IStrategyAdapter {
     emit Executed(vault, asset, actionRaw, amount);
   }
 
-  function totalAssets(
-    address vault,
-    address asset
-  ) external view override returns (uint256) {
+  function totalAssets(address vault, address asset) external view override returns (uint256) {
     return ICompoundV3Comet(address(comet)).deposits(vault, asset);
   }
 
@@ -75,39 +63,15 @@ contract CompoundV3Adapter is IStrategyAdapter {
     return address(comet);
   }
 
-  function _deposit(
-    address vault,
-    address asset,
-    uint256 amount
-  ) internal {
-    IVaultStrategyExecutor(vault).approveTokenFromRouter(
-      asset,
-      address(comet),
-      amount
-    );
+  function _deposit(address vault, address asset, uint256 amount) internal {
+    IVaultStrategyExecutor(vault).approveTokenFromRouter(asset, address(comet), amount);
 
-    IVaultStrategyExecutor(vault).executeFromRouter(
-      address(comet),
-      0,
-      abi.encodeCall(
-        ICompoundV3Comet.supply,
-        (asset, amount)
-      )
-    );
+    IVaultStrategyExecutor(vault)
+      .executeFromRouter(address(comet), 0, abi.encodeCall(ICompoundV3Comet.supply, (asset, amount)));
   }
 
-  function _withdraw(
-    address vault,
-    address asset,
-    uint256 amount
-  ) internal {
-    IVaultStrategyExecutor(vault).executeFromRouter(
-      address(comet),
-      0,
-      abi.encodeCall(
-        ICompoundV3Comet.withdrawTo,
-        (vault, asset, amount)
-      )
-    );
+  function _withdraw(address vault, address asset, uint256 amount) internal {
+    IVaultStrategyExecutor(vault)
+      .executeFromRouter(address(comet), 0, abi.encodeCall(ICompoundV3Comet.withdrawTo, (vault, asset, amount)));
   }
 }

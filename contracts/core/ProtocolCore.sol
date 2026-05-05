@@ -8,11 +8,7 @@ import {CommonErrors} from "../libraries/errors/CommonErrors.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 
-contract ProtocolCore is
-  Initializable,
-  AccessControlUpgradeable,
-  UUPSUpgradeable
-{
+contract ProtocolCore is Initializable, AccessControlUpgradeable, UUPSUpgradeable {
   using EnumerableSet for EnumerableSet.AddressSet;
 
   bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
@@ -37,12 +33,9 @@ contract ProtocolCore is
     address[] memory allowedGenesisTokens,
     address allowedVaultToken
   ) external initializer {
-    if(
-      adminTimelock_ == address(0) ||
-      emergencyOperator == address(0) ||
-      allowedVaultToken == address(0)
-    )
+    if (adminTimelock_ == address(0) || emergencyOperator == address(0) || allowedVaultToken == address(0)) {
       revert CommonErrors.ZeroAddress();
+    }
     __AccessControl_init();
 
     adminTimelock = adminTimelock_;
@@ -54,14 +47,11 @@ contract ProtocolCore is
     _setSupportedVaultToken(allowedVaultToken, true);
   }
 
-  function setSupportedVaultAsset(
-    address asset,
-    bool allowed
-  ) external onlyRole(MANAGER_ROLE) {
+  function setSupportedVaultAsset(address asset, bool allowed) external onlyRole(MANAGER_ROLE) {
     _setSupportedVaultToken(asset, allowed);
   }
 
-  function isVaultAssetSupported(address asset) external view returns(bool) {
+  function isVaultAssetSupported(address asset) external view returns (bool) {
     return _supportedVaultAssets[asset];
   }
 
@@ -85,15 +75,15 @@ contract ProtocolCore is
     emit VaultDepositsPauseSet(false);
   }
 
-  function hasGenesisToken(address token) external view returns(bool) {
+  function hasGenesisToken(address token) external view returns (bool) {
     return _supportedGenesisTokens.contains(token);
   }
 
-  function getSupportedGenesisTokens() external view returns(address[] memory) {
+  function getSupportedGenesisTokens() external view returns (address[] memory) {
     return _supportedGenesisTokens.values();
   }
 
-  function getTimelockMinDelay() external view returns(uint256) {
+  function getTimelockMinDelay() external view returns (uint256) {
     return TimelockController(adminTimelock).getMinDelay();
   }
 
@@ -104,8 +94,8 @@ contract ProtocolCore is
   function _setSupportedGenesisTokens(address[] memory allowedGenesisTokens) internal {
     uint256 length = allowedGenesisTokens.length;
 
-    for(uint256 i = 0; i < length; i++) {
-      if(allowedGenesisTokens[i] == address(0)) revert CommonErrors.ZeroAddress();
+    for (uint256 i = 0; i < length; i++) {
+      if (allowedGenesisTokens[i] == address(0)) revert CommonErrors.ZeroAddress();
       _supportedGenesisTokens.add(allowedGenesisTokens[i]);
     }
   }
@@ -116,7 +106,5 @@ contract ProtocolCore is
     emit SupportedVaultAssetSet(allowedVaultToken, allowed);
   }
 
-  function _authorizeUpgrade(
-    address newImplementation
-  ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+  function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 }

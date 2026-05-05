@@ -34,7 +34,13 @@ contract MockCompoundComet {
     emit Withdrawn(msg.sender, to, asset, amount);
   }
 
-  function balanceOf(address /* account */) external pure returns (uint256) {
+  function balanceOf(
+    address /* account */
+  )
+    external
+    pure
+    returns (uint256)
+  {
     return 0;
   }
 }

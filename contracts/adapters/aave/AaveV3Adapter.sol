@@ -18,12 +18,7 @@ contract AaveV3Adapter is IStrategyAdapter {
   IAaveV3Pool private immutable pool;
   address public immutable router;
 
-  event Executed(
-    address indexed vault,
-    address indexed asset,
-    uint8 indexed action,
-    uint256 amount
-  );
+  event Executed(address indexed vault, address indexed asset, uint8 indexed action, uint256 amount);
 
   error AaveV3Adapter__NotRouter();
   error AaveV3Adapter__InvalidAction();
@@ -42,11 +37,7 @@ contract AaveV3Adapter is IStrategyAdapter {
     pool = IAaveV3Pool(pool_);
   }
 
-  function execute(
-    address vault,
-    uint8 actionRaw,
-    uint256 amount
-  ) external override onlyRouter {
+  function execute(address vault, uint8 actionRaw, uint256 amount) external override onlyRouter {
     if (vault == address(0)) revert CommonErrors.ZeroAddress();
     if (amount == 0) revert CommonErrors.ZeroAmount();
 
@@ -65,10 +56,7 @@ contract AaveV3Adapter is IStrategyAdapter {
     emit Executed(vault, asset, actionRaw, amount);
   }
 
-  function totalAssets(
-    address vault,
-    address asset
-  ) external view override returns (uint256) {
+  function totalAssets(address vault, address asset) external view override returns (uint256) {
     return IAaveV3Pool(address(pool)).deposits(vault, asset);
   }
 
@@ -76,39 +64,15 @@ contract AaveV3Adapter is IStrategyAdapter {
     return address(pool);
   }
 
-  function _deposit(
-    address vault,
-    address asset,
-    uint256 amount
-  ) internal {
-    IVaultStrategyExecutor(vault).approveTokenFromRouter(
-      asset,
-      address(pool),
-      amount
-    );
+  function _deposit(address vault, address asset, uint256 amount) internal {
+    IVaultStrategyExecutor(vault).approveTokenFromRouter(asset, address(pool), amount);
 
-    IVaultStrategyExecutor(vault).executeFromRouter(
-      address(pool),
-      0,
-      abi.encodeCall(
-        IAaveV3Pool.supply,
-        (asset, amount, vault, 0)
-      )
-    );
+    IVaultStrategyExecutor(vault)
+      .executeFromRouter(address(pool), 0, abi.encodeCall(IAaveV3Pool.supply, (asset, amount, vault, 0)));
   }
 
-  function _withdraw(
-    address vault,
-    address asset,
-    uint256 amount
-  ) internal {
-    IVaultStrategyExecutor(vault).executeFromRouter(
-      address(pool),
-      0,
-      abi.encodeCall(
-        IAaveV3Pool.withdraw,
-        (asset, amount, vault)
-      )
-    );
+  function _withdraw(address vault, address asset, uint256 amount) internal {
+    IVaultStrategyExecutor(vault)
+      .executeFromRouter(address(pool), 0, abi.encodeCall(IAaveV3Pool.withdraw, (asset, amount, vault)));
   }
 }
