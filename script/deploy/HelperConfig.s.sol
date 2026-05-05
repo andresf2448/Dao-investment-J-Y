@@ -1,69 +1,85 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.33;
 
-import {Script, console} from "forge-std/Script.sol";
-import {MockERC20} from "../../test/mocks/MockERC20.sol";
-import {MockAavePool} from "../../test/mocks/MockAavePool.sol";
+import {Script} from "forge-std/Script.sol";
 
 contract HelperConfig is Script {
-  struct NetworkConfig {
-    address[] allowedGenesisTokens;
-    uint256 deployerPrivateKey;
-    address aavePool;
-    address compoundComet;
-    string networkName;
-    address allowedVaultToken;
-    address mockV3Aggregator;
-  }
-
-  uint256 public constant DEFAULT_ANVIL_PRIVATE_KEY = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
-
-  NetworkConfig private activeNetworkConfig;
-
-  constructor() {
-    if(block.chainid == 11155111) {
-      activeNetworkConfig = getSepoliaConfig();
-    } else {
-      activeNetworkConfig = getOrCreateAnvilConfig();
+    struct NetworkConfig {
+        address[] allowedGenesisTokens;
+        uint256 deployerPrivateKey;
+        address aavePool;
+        address compoundComet;
+        string networkName;
+        address allowedVaultToken;
+        address mockV3Aggregator;
     }
-  }
 
-  function getSepoliaConfig() public view returns(NetworkConfig memory sepoliaNetworkConfig) {
-    address[] memory allowedGenesisTokens = new address[](1);
-    allowedGenesisTokens[0] = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238;
+    uint256 public constant DEFAULT_ANVIL_PRIVATE_KEY =
+        0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
 
-    sepoliaNetworkConfig = NetworkConfig({
-      allowedGenesisTokens: allowedGenesisTokens,
-      allowedVaultToken: 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238,
-      deployerPrivateKey: vm.envUint("SEPOLIA_PRIVATE_KEY"),
-      aavePool: 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2,
-      compoundComet: 0xAec1F48e02Cfb822Be958B68C7957156EB3F0b6e,
-      mockV3Aggregator: 0x694AA1769357215DE4FAC081bf1f309aDC325306,
-      networkName: "sepolia"
-    });
-  }
+    NetworkConfig private activeNetworkConfig;
 
-  function getOrCreateAnvilConfig() public view returns(NetworkConfig memory anvilNetworkConfig) {
-    if(activeNetworkConfig.allowedGenesisTokens.length > 0) return activeNetworkConfig;
+    constructor() {
+        if (block.chainid == 31337) {
+            activeNetworkConfig = getOrCreateAnvilConfig();
+        } else if (block.chainid == 11155111) {
+            activeNetworkConfig = getSepoliaConfig();
+        } else {
+            activeNetworkConfig = getEnvNetworkConfig();
+        }
+    }
 
-    // Los mocks se desplegarán en cada script individual dentro de vm.startBroadcast
-    address[] memory allowedGenesisTokens = new address[](1);
-    allowedGenesisTokens[0] = address(0); // Placeholder, se reemplazará en cada deploy
+    function getSepoliaConfig() public view returns (NetworkConfig memory sepoliaNetworkConfig) {
+        address[] memory allowedGenesisTokens = new address[](1);
+        allowedGenesisTokens[0] = 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238;
 
-    anvilNetworkConfig = NetworkConfig({
-      allowedGenesisTokens: allowedGenesisTokens,
-      allowedVaultToken: address(0), // Placeholder, se reemplazará en cada deploy
-      deployerPrivateKey: DEFAULT_ANVIL_PRIVATE_KEY,
-      aavePool: address(0), // Placeholder, se reemplazará en cada deploy
-      compoundComet: address(0), // Placeholder, se reemplazará en cada deploy
-      mockV3Aggregator: address(0), // Placeholder, se reemplazará en cada deploy
-      networkName: "anvil"
-    });
+        sepoliaNetworkConfig = NetworkConfig({
+            allowedGenesisTokens: allowedGenesisTokens,
+            allowedVaultToken: 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238,
+            deployerPrivateKey: vm.envUint("SEPOLIA_PRIVATE_KEY"),
+            aavePool: 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2,
+            compoundComet: 0xAec1F48e02Cfb822Be958B68C7957156EB3F0b6e,
+            mockV3Aggregator: 0x694AA1769357215DE4FAC081bf1f309aDC325306,
+            networkName: "sepolia"
+        });
+    }
 
-    return anvilNetworkConfig;
-  }
+    function getOrCreateAnvilConfig() public view returns (NetworkConfig memory anvilNetworkConfig) {
+        if (activeNetworkConfig.allowedGenesisTokens.length > 0) return activeNetworkConfig;
 
-  function getActiveNetworkConfig() external view returns(NetworkConfig memory) {
-    return activeNetworkConfig;
-  }
+        // Los mocks se desplegarán en cada script individual dentro de vm.startBroadcast
+        address[] memory allowedGenesisTokens = new address[](1);
+        allowedGenesisTokens[0] = address(0); // Placeholder, se reemplazará en cada deploy
+
+        anvilNetworkConfig = NetworkConfig({
+            allowedGenesisTokens: allowedGenesisTokens,
+            allowedVaultToken: address(0), // Placeholder, se reemplazará en cada deploy
+            deployerPrivateKey: DEFAULT_ANVIL_PRIVATE_KEY,
+            aavePool: address(0), // Placeholder, se reemplazará en cada deploy
+            compoundComet: address(0), // Placeholder, se reemplazará en cada deploy
+            mockV3Aggregator: address(0), // Placeholder, se reemplazará en cada deploy
+            networkName: "anvil"
+        });
+
+        return anvilNetworkConfig;
+    }
+
+    function getEnvNetworkConfig() public view returns (NetworkConfig memory envNetworkConfig) {
+        address[] memory allowedGenesisTokens = new address[](1);
+        allowedGenesisTokens[0] = vm.envAddress("ALLOWED_GENESIS_TOKEN");
+
+        envNetworkConfig = NetworkConfig({
+            allowedGenesisTokens: allowedGenesisTokens,
+            allowedVaultToken: vm.envAddress("ALLOWED_VAULT_TOKEN"),
+            deployerPrivateKey: vm.envUint("PRIVATE_KEY"),
+            aavePool: vm.envAddress("AAVE_POOL"),
+            compoundComet: vm.envAddress("COMPOUND_COMET"),
+            mockV3Aggregator: vm.envAddress("PRICE_FEED"),
+            networkName: vm.envString("NETWORK_NAME")
+        });
+    }
+
+    function getActiveNetworkConfig() external view returns (NetworkConfig memory) {
+        return activeNetworkConfig;
+    }
 }

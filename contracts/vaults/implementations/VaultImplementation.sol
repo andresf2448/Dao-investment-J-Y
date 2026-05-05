@@ -215,12 +215,14 @@ contract VaultImplementation is
     uint256 idleAssets = IERC20(asset()).balanceOf(address(this));
 
     if (assets > idleAssets) {
-      _divestStrategy(assets - idleAssets);
+      _divestStrategy();
+      shares = super.withdraw(assets, receiver, owner);
+
+      _rebalanceStrategies();
+    } else {
+      shares = super.withdraw(assets, receiver, owner);
     }
 
-    shares = super.withdraw(assets, receiver, owner);
-
-    _rebalanceStrategies();
   }
 
   function redeem(
@@ -234,16 +236,17 @@ contract VaultImplementation is
     nonReentrant
     returns (uint256 assets)
   {
-    uint256 assetsNeeded = previewRedeem(shares);
     uint256 idleAssets = IERC20(asset()).balanceOf(address(this));
 
-    if (assetsNeeded > idleAssets) {
-      _divestStrategy(assetsNeeded - idleAssets);
+    if (previewRedeem(shares) > idleAssets) {
+      _divestStrategy();
+      assets = super.redeem(shares, receiver, owner);
+
+      _rebalanceStrategies();
+    } else {
+      assets = super.redeem(shares, receiver, owner);
     }
 
-    assets = super.redeem(shares, receiver, owner);
-
-    _rebalanceStrategies();
   }
 
   function totalAssets()
@@ -271,7 +274,7 @@ contract VaultImplementation is
   }
 
   function divestStrategy() external onlyRole(GUARDIAN_ROLE) whenNotPaused {
-    _divestAllStrategies();
+    _divestStrategy();
   }
 
   function executeFromRouter(
@@ -421,53 +424,10 @@ contract VaultImplementation is
     );
   }
 
-  function _divestStrategy(uint256 amountNeeded) internal {
+  function _divestStrategy() internal {
     uint256 length = _vaultActiveAdapters.length();
 
-    if (length == 0) {
-      revert VaultImplementation__InvalidStrategyAllocation();
-    }
-
-    address[] memory adapters = _vaultActiveAdapters.values();
-    uint256[] memory amountsToDivest = new uint256[](length);
-
-    uint256 remaining = amountNeeded;
-
-    for (uint256 i = 0; i < length; i++) {
-      address adapter = adapters[i];
-
-      uint256 deployed = IStrategyAdapter(adapter).totalAssets(
-        address(this),
-        asset()
-      );
-
-      if (deployed == 0) continue;
-
-      uint256 amount = deployed < remaining ? deployed : remaining;
-
-      amountsToDivest[i] = amount;
-      remaining -= amount;
-
-      if (remaining == 0) break;
-    }
-
-    if (remaining != 0) {
-      revert VaultImplementation__InvalidStrategyAllocation();
-    }
-
-    IStrategyRouter(router).divestMultiple(
-      address(this),
-      adapters,
-      amountsToDivest
-    );
-  }
-
-  function _divestAllStrategies() internal {
-    uint256 length = _vaultActiveAdapters.length();
-
-    if (length == 0) {
-      revert VaultImplementation__InvalidStrategyAllocation();
-    }
+    if (length == 0) return;
 
     address[] memory adapters = _vaultActiveAdapters.values();
     uint256[] memory amountsToDivest = new uint256[](length);

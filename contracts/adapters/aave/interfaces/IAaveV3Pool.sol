@@ -14,4 +14,9 @@ interface IAaveV3Pool {
     uint256 amount,
     address to
   ) external returns (uint256);
+
+  function deposits(
+    address user,
+    address asset
+  ) external view returns (uint256);
 }

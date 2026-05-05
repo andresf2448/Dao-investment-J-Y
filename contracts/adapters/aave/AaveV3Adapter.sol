@@ -7,7 +7,7 @@ import {IStrategyAdapter} from "../../interfaces/adapters/IStrategyAdapter.sol";
 import {IVaultStrategyExecutor} from "../../interfaces/vaults/IVaultStrategyExecutor.sol";
 import {IAaveV3Pool} from "./interfaces/IAaveV3Pool.sol";
 import {CommonErrors} from "../../libraries/errors/CommonErrors.sol";
-import {IMockAavePool} from "../../../test/interfaces/IMockAavePool.sol";
+import {IAaveV3Pool} from "./interfaces/IAaveV3Pool.sol";
 
 contract AaveV3Adapter is IStrategyAdapter {
   enum Action {
@@ -69,7 +69,7 @@ contract AaveV3Adapter is IStrategyAdapter {
     address vault,
     address asset
   ) external view override returns (uint256) {
-    return IMockAavePool(address(pool)).deposits(vault, asset);
+    return IAaveV3Pool(address(pool)).deposits(vault, asset);
   }
 
   function poolAddress() external view override returns (address) {

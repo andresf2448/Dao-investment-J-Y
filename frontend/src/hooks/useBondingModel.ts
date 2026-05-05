@@ -88,7 +88,10 @@ export function useBondingModel(): BondingModel {
     );
   }, [assets, selectedAssetAddress]);
 
-  const { data: selectedAssetBalanceData } = useReadContracts({
+  const {
+    data: selectedAssetBalanceData,
+    refetch: refetchSelectedAssetBalance,
+  } = useReadContracts({
     allowFailure: true,
     contracts:
       selectedAsset && connection.address
@@ -264,6 +267,7 @@ export function useBondingModel(): BondingModel {
           });
 
           setAmount("");
+          await refetchSelectedAssetBalance();
           await refetch();
           Swal.close();
 

@@ -7,7 +7,6 @@ import {IStrategyAdapter} from "../../interfaces/adapters/IStrategyAdapter.sol";
 import {IVaultStrategyExecutor} from "../../interfaces/vaults/IVaultStrategyExecutor.sol";
 import {CommonErrors} from "../../libraries/errors/CommonErrors.sol";
 import {ICompoundV3Comet} from "./interfaces/ICompoundV3Comet.sol";
-import {IMockCompoundComet} from "../../../test/interfaces/IMockCompoundComet.sol";
 
 contract CompoundV3Adapter is IStrategyAdapter {
   enum Action {
@@ -69,7 +68,7 @@ contract CompoundV3Adapter is IStrategyAdapter {
     address vault,
     address asset
   ) external view override returns (uint256) {
-    return IMockCompoundComet(address(comet)).deposits(vault, asset);
+    return ICompoundV3Comet(address(comet)).deposits(vault, asset);
   }
 
   function poolAddress() external view override returns (address) {
