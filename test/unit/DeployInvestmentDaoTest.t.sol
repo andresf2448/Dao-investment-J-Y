@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.33;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, console} from "forge-std/Test.sol";
 import {DeployInvestmentDaoHarness} from "../helpers/DeployInvestmentDaoHarness.sol";
 import {InvestmentDaoBootstrapHarness} from "../helpers/InvestmentDaoBootstrapHarness.sol";
 import {TimeLock} from "../../contracts/governance/TimeLock.sol";
@@ -9,10 +9,25 @@ import {DaoGovernor} from "../../contracts/governance/DaoGovernor.sol";
 import {GovernanceToken} from "../../contracts/governance/GovernanceToken.sol";
 import {GuardianAdministrator} from "../../contracts/guardians/GuardianAdministrator.sol";
 import {VaultRegistry} from "../../contracts/vaults/registry/VaultRegistry.sol";
+import {GenesisBonding} from "../../contracts/bootstrap/GenesisBonding.sol";
+import {ProtocolCore} from "../../contracts/core/ProtocolCore.sol";
+import {RiskManager} from "../../contracts/execution/RiskManager.sol";
+import {StrategyRouter} from "../../contracts/execution/StrategyRouter.sol";
+import {GuardianBondEscrow} from "../../contracts/guardians/GuardianBondEscrow.sol";
+import {VaultFactory} from "../../contracts/vaults/factory/VaultFactory.sol";
+import {VaultImplementation} from "../../contracts/vaults/implementations/VaultImplementation.sol";
 
 contract DeployInvestmentDaoTest is Test {
   uint256 private constant BLOCK_TIME = 12;
   uint256 private constant NONZERO_DELAY = 1 days;
+	bytes32 constant DEFAULT_ADMIN_ROLE = 0x00;
+  bytes32 constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
+  bytes32 constant ADAPTER_MANAGER_ROLE = keccak256("ADAPTER_MANAGER_ROLE");
+  bytes32 constant FACTORY_ROL = keccak256("FACTORY_ROLE");
+  bytes32 constant PROPOSER_ROLE = keccak256("PROPOSER_ROLE");
+  bytes32 constant EXECUTOR_ROLE = keccak256("EXECUTOR_ROLE");
+  address deployer = vm.addr(vm.envUint("DEFAULT_ANVIL_PRIVATE_KEY"));
+  uint256 minDelay;
 
   TimeLock private timeLock;
   GovernanceToken private governanceToken;
@@ -29,6 +44,7 @@ contract DeployInvestmentDaoTest is Test {
   address private vaultFactory;
   address private aaveV3Adapter;
   address private compoundV3Adapter;
+  InvestmentDaoBootstrapHarness harness;
 
   function setUp() public {
     vm.roll(100);
@@ -53,6 +69,15 @@ contract DeployInvestmentDaoTest is Test {
       aaveV3Adapter,
       compoundV3Adapter
     ) = deployInvestmentDao.deployForTest();
+
+    harness = new InvestmentDaoBootstrapHarness();
+
+    vm.startPrank(address(timeLock));
+      timeLock.grantRole(PROPOSER_ROLE, address(harness));
+      timeLock.grantRole(EXECUTOR_ROLE, address(harness));
+    vm.stopPrank();
+
+    minDelay = timeLock.getMinDelay();
 
     vm.roll(block.number + 1);
     vm.warp(block.timestamp + BLOCK_TIME);
@@ -82,12 +107,10 @@ contract DeployInvestmentDaoTest is Test {
   }
 
   function testGovernorReceivesTimelockRoles() public view {
-    assertTrue(timeLock.hasRole(timeLock.PROPOSER_ROLE(), daoGovernor));
-    assertTrue(timeLock.hasRole(timeLock.EXECUTOR_ROLE(), daoGovernor));
+    assertTrue(timeLock.hasRole(PROPOSER_ROLE, daoGovernor));
+    assertTrue(timeLock.hasRole(EXECUTOR_ROLE, daoGovernor));
     assertTrue(timeLock.hasRole(timeLock.CANCELLER_ROLE(), daoGovernor));
   }
-
-  function testTimeLockHasAllNeededRoles() public view {}
 
   function testGuardianAdministratorHasSnapshotVotingPower() public view {
     uint256 proposalThreshold = DaoGovernor(payable(daoGovernor)).proposalThreshold();
@@ -96,9 +119,96 @@ contract DeployInvestmentDaoTest is Test {
     assertEq(governanceToken.getPastVotes(guardianAdministrator, block.number - 1), proposalThreshold);
   }
 
-  function testNonZeroDelayBootstrapWaitsBeforeExecution() public {
-    InvestmentDaoBootstrapHarness harness = new InvestmentDaoBootstrapHarness();
+  function testValidateRolesTimeLockInContracts() public view {
+		assertTrue(GenesisBonding(genesisBonding).hasRole(DEFAULT_ADMIN_ROLE, address(timeLock)));
+		assertTrue(ProtocolCore(protocolCore).hasRole(DEFAULT_ADMIN_ROLE, address(timeLock)));
+		assertTrue(ProtocolCore(protocolCore).hasRole(MANAGER_ROLE, address(timeLock)));
+		assertTrue(governanceToken.hasRole(DEFAULT_ADMIN_ROLE, address(timeLock)));
+		assertTrue(RiskManager(riskManager).hasRole(DEFAULT_ADMIN_ROLE, address(timeLock)));
+		assertTrue(RiskManager(riskManager).hasRole(MANAGER_ROLE, address(timeLock)));
+    assertTrue(StrategyRouter(strategyRouter).hasRole(DEFAULT_ADMIN_ROLE, address(timeLock)));
+		assertTrue(StrategyRouter(strategyRouter).hasRole(ADAPTER_MANAGER_ROLE, address(timeLock)));
+		assertTrue(governanceToken.hasRole(DEFAULT_ADMIN_ROLE, address(timeLock)));
+		assertTrue(GuardianBondEscrow(guardianBondEscrow).hasRole(DEFAULT_ADMIN_ROLE, address(timeLock)));
+		assertTrue(VaultFactory(vaultFactory).hasRole(DEFAULT_ADMIN_ROLE, address(timeLock)));
+		assertTrue(VaultRegistry(vaultRegistry).hasRole(DEFAULT_ADMIN_ROLE, address(timeLock)));
+		assertFalse(VaultImplementation(vaultImplementation).hasRole(DEFAULT_ADMIN_ROLE, address(timeLock)));
+  }
 
+  function testValidateGenesisBondingHasRoleMinterInGovernanceToken() public view {
+    assertTrue(governanceToken.hasRole(governanceToken.MINTER_ROLE(), genesisBonding));
+  }
+
+  function testDeployerHasNoRolesInGovernanceTokenOrGenesisBonding() public view {
+    assertFalse(governanceToken.hasRole(DEFAULT_ADMIN_ROLE, deployer));
+    assertFalse(GenesisBonding(genesisBonding).hasRole(DEFAULT_ADMIN_ROLE, deployer));
+    assertFalse(TimeLock(payable(address(timeLock))).hasRole(DEFAULT_ADMIN_ROLE, deployer));
+  }
+
+  function testGuardianAdministratorBondEscrowLink() public view {
+    assertEq(address(GuardianAdministrator(guardianAdministrator).bondEscrow()), guardianBondEscrow);
+  }
+
+  function testGuardianBondEscrowGuardianAdministratorLink() public view {
+    // GuardianBondEscrow.guardianAdministrator apunta a GuardianAdministrator
+    assertEq(address(GuardianBondEscrow(guardianBondEscrow).guardianAdministrator()), guardianAdministrator);
+  }
+
+  function testVaultRegistryFactoryRoleRecognition() public view {
+    assertTrue(VaultRegistry(vaultRegistry).hasRole(FACTORY_ROL, vaultFactory));
+  }
+
+  function testVaultFactoryCoreLinks() public view {
+    // VaultFactory pointers a las implementaciones/relaciones esperadas
+    assertEq(address(VaultFactory(vaultFactory).implementation()), vaultImplementation);
+    assertEq(address(VaultFactory(vaultFactory).guardianAdministrator()), guardianAdministrator);
+    assertEq(address(VaultFactory(vaultFactory).vaultRegistry()), vaultRegistry);
+    assertEq(address(VaultFactory(vaultFactory).router()), strategyRouter);
+    assertEq(address(VaultFactory(vaultFactory).core()), protocolCore);
+  }
+
+  function testStrategyRouterCoreLinks() public view {
+    // StrategyRouter apunta al RiskManager y al VaultRegistry
+    assertEq(address(StrategyRouter(strategyRouter).riskManager()), riskManager);
+    assertEq(address(StrategyRouter(strategyRouter).vaultRegistry()), vaultRegistry);
+  }
+
+  function testStrategyRouterAdapterPermissions() public {
+    bytes memory dataAave = abi.encodeWithSelector(
+      StrategyRouter.setAdapterAllowed.selector,
+      aaveV3Adapter,
+      true
+    );
+    bytes32 saltAave = harness.vaultFactorySalt();
+    harness.scheduleFromCurrentSender(timeLock, address(strategyRouter), dataAave, saltAave);
+
+    bytes memory dataCompound = abi.encodeWithSelector(
+      StrategyRouter.setAdapterAllowed.selector,
+      compoundV3Adapter,
+      true
+    );
+    bytes32 saltCompound = harness.vaultFactorySalt();
+    harness.scheduleFromCurrentSender(timeLock, address(strategyRouter), dataCompound, saltCompound);
+
+    vm.warp(block.timestamp + minDelay + 1);
+    vm.roll(block.number + 1);
+
+    harness.executeReadyFromCurrentSender(timeLock, address(strategyRouter), dataAave, saltAave);
+    harness.executeReadyFromCurrentSender(timeLock, address(strategyRouter), dataCompound, saltCompound);
+
+    assertTrue(StrategyRouter(strategyRouter).isAdapterAllowed(aaveV3Adapter));
+    assertTrue(StrategyRouter(strategyRouter).isAdapterAllowed(compoundV3Adapter));
+  }
+
+  function testProtocolCoreGenesisTokenSupport() public view {
+    // ProtocolCore soporta el asset genesis utilizado
+    address[] memory genesisTokens = ProtocolCore(protocolCore).getSupportedGenesisTokens();
+    require(genesisTokens.length > 0, "No Genesis tokens configured");
+    address firstGenesis = genesisTokens[0];
+    assertTrue(ProtocolCore(protocolCore).isVaultAssetSupported(firstGenesis));
+  }
+
+  function testNonZeroDelayBootstrapWaitsBeforeExecution() public {
     address[] memory proposers = new address[](1);
     address[] memory executors = new address[](1);
     proposers[0] = address(harness);
@@ -132,5 +242,36 @@ contract DeployInvestmentDaoTest is Test {
     assertTrue(executedAfterDelay);
     assertTrue(delayedTimeLock.isOperationDone(operationId));
     assertTrue(delayedVaultRegistry.hasRole(delayedVaultRegistry.FACTORY_ROLE(), expectedFactory));
+  }
+
+  function testRiskManagerOracleConfig() public {
+    address[] memory genesisTokens = ProtocolCore(protocolCore).getSupportedGenesisTokens();
+    require(genesisTokens.length > 0, "No Genesis tokens configured");
+    address firstGenesis = genesisTokens[0];
+
+    bytes memory data = abi.encodeWithSelector(
+      RiskManager.setAssetConfig.selector,
+      firstGenesis,
+      makeAddr("oracleFeed"),
+      uint48(3600),
+      true,
+      uint16(9000),
+      uint16(11000),
+      true
+    );
+
+    bytes32 salt = harness.vaultFactorySalt();
+    harness.scheduleFromCurrentSender(timeLock, address(riskManager), data, salt);
+    vm.warp(block.timestamp + minDelay + 1);
+    vm.roll(block.number + 1);
+    (bytes32 executedOperationId, bool executedAfterDelay) =
+      harness.executeReadyFromCurrentSender(timeLock, address(riskManager), data, salt);
+
+    // Verifica que RiskManager tiene configuración de oracle para el primer Genesis token
+    RiskManager.AssetConfig memory config = RiskManager(riskManager).getAssetConfig(firstGenesis);
+    
+    require(config.feed != address(0), "Feed not configured");
+    require(config.heartbeat > 0, "Heartbeat must be > 0");
+    assertTrue(config.enabled);
   }
 }

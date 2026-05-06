@@ -90,13 +90,13 @@ contract VaultImplementation is
     string memory name_,
     string memory symbol_,
     address guardian_,
-    address admin_,
+    address adminTimelock,
     address factory_,
     address router_,
     address core_
   ) external initializer {
     if (
-      asset_ == address(0) || guardian_ == address(0) || admin_ == address(0) || factory_ == address(0)
+      asset_ == address(0) || guardian_ == address(0) || adminTimelock == address(0) || factory_ == address(0)
         || router_ == address(0) || core_ == address(0)
     ) {
       revert CommonErrors.ZeroAddress();
@@ -114,11 +114,11 @@ contract VaultImplementation is
     router = router_;
     core = core_;
 
-    _grantRole(DEFAULT_ADMIN_ROLE, admin_);
+    _grantRole(DEFAULT_ADMIN_ROLE, adminTimelock);
     _grantRole(GUARDIAN_ROLE, guardian_);
     _grantRole(STRATEGY_EXECUTOR_ROLE, router_);
 
-    emit VaultInitialized(asset_, guardian_, admin_, factory_, router_, core_);
+    emit VaultInitialized(asset_, guardian_, adminTimelock, factory_, router_, core_);
   }
 
   function setRouter(address newRouter) external onlyRole(DEFAULT_ADMIN_ROLE) {

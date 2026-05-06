@@ -24,6 +24,7 @@ import {TimeLock} from "../../contracts/governance/TimeLock.sol";
 import {DaoGovernor} from "../../contracts/governance/DaoGovernor.sol";
 import {GovernanceToken} from "../../contracts/governance/GovernanceToken.sol";
 import {GuardianAdministrator} from "../../contracts/guardians/GuardianAdministrator.sol";
+import {GenesisBonding} from "../../contracts/bootstrap/GenesisBonding.sol";
 
 contract DeployInvestmentDao is InvestmentDaoDeploymentBase {
   struct BootstrapStatus {
@@ -177,16 +178,15 @@ contract DeployInvestmentDao is InvestmentDaoDeploymentBase {
     );
 
     vm.startBroadcast(networkConfig.deployerPrivateKey);
-    governanceToken.grantRole(governanceToken.MINTER_ROLE(), genesisBonding);
-    governanceToken.grantRole(governanceToken.MINTER_ROLE(), deployer);
-    governanceToken.mint(guardianAdministrator, DaoGovernor(payable(daoGovernor)).proposalThreshold());
-    governanceToken.revokeRole(governanceToken.MINTER_ROLE(), deployer);
-    governanceToken.grantRole(governanceToken.DEFAULT_ADMIN_ROLE(), address(timeLock));
-    governanceToken.revokeRole(governanceToken.DEFAULT_ADMIN_ROLE(), deployer);
-    vm.stopBroadcast();
-
-    vm.startBroadcast(networkConfig.deployerPrivateKey);
-    GuardianAdministrator(guardianAdministrator).selfDelegateGovernanceVotes(address(governanceToken));
+      governanceToken.grantRole(governanceToken.MINTER_ROLE(), genesisBonding);
+      governanceToken.grantRole(governanceToken.MINTER_ROLE(), deployer);
+      governanceToken.mint(guardianAdministrator, DaoGovernor(payable(daoGovernor)).proposalThreshold());
+      governanceToken.revokeRole(governanceToken.MINTER_ROLE(), deployer);
+      governanceToken.grantRole(governanceToken.DEFAULT_ADMIN_ROLE(), address(timeLock));
+      governanceToken.revokeRole(governanceToken.DEFAULT_ADMIN_ROLE(), deployer);
+      GuardianAdministrator(guardianAdministrator).selfDelegateGovernanceVotes(address(governanceToken));
+      GenesisBonding(genesisBonding).grantRole(GenesisBonding(genesisBonding).DEFAULT_ADMIN_ROLE(), address(timeLock));
+      GenesisBonding(genesisBonding).revokeRole(GenesisBonding(genesisBonding).DEFAULT_ADMIN_ROLE(), deployer);
     vm.stopBroadcast();
 
     DeployGuardianBondEscrow deployGuardianBondEscrow = new DeployGuardianBondEscrow();
@@ -238,10 +238,8 @@ contract DeployInvestmentDao is InvestmentDaoDeploymentBase {
     );
 
     vm.startBroadcast(networkConfig.deployerPrivateKey);
-    _grantGovernorTimelockRolesFromCurrentSender(timeLock, daoGovernor);
-    if (block.chainid == 31337) {
+      _grantGovernorTimelockRolesFromCurrentSender(timeLock, daoGovernor);
       timeLock.renounceRole(timeLock.DEFAULT_ADMIN_ROLE(), deployer);
-    }
     vm.stopBroadcast();
 
     console.log("========================================");

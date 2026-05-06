@@ -14,9 +14,6 @@ contract HelperConfig is Script {
     address mockV3Aggregator;
   }
 
-  uint256 public constant DEFAULT_ANVIL_PRIVATE_KEY =
-    0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
-
   NetworkConfig private activeNetworkConfig;
 
   constructor() {
@@ -54,7 +51,7 @@ contract HelperConfig is Script {
     anvilNetworkConfig = NetworkConfig({
       allowedGenesisTokens: allowedGenesisTokens,
       allowedVaultToken: address(0), // Placeholder, se reemplazará en cada deploy
-      deployerPrivateKey: DEFAULT_ANVIL_PRIVATE_KEY,
+      deployerPrivateKey: vm.envUint("DEFAULT_ANVIL_PRIVATE_KEY"),
       aavePool: address(0), // Placeholder, se reemplazará en cada deploy
       compoundComet: address(0), // Placeholder, se reemplazará en cada deploy
       mockV3Aggregator: address(0), // Placeholder, se reemplazará en cada deploy

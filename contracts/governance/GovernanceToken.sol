@@ -13,8 +13,8 @@ contract GovernanceToken is ERC20, EIP712, ERC20Votes, AccessControl {
   event MintingFinished();
   error GovernanceToken__MintingDisabled();
 
-  constructor(address admin) ERC20("GovernanceToken_J&Y", "GVT") EIP712("GovernanceToken_J&Y", "1") AccessControl() {
-    _grantRole(DEFAULT_ADMIN_ROLE, admin);
+  constructor(address adminTimelock) ERC20("GovernanceToken_J&Y", "GVT") EIP712("GovernanceToken_J&Y", "1") AccessControl() {
+    _grantRole(DEFAULT_ADMIN_ROLE, adminTimelock);
   }
 
   function mint(address to, uint256 amount) external onlyRole(MINTER_ROLE) {

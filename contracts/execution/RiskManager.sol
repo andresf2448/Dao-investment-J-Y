@@ -120,6 +120,30 @@ contract RiskManager is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     return _assetConfigs[asset];
   }
 
+  // Fallback helper to expose asset config fields individually for tests
+  function getAssetConfigFields(address asset)
+    external
+    view
+    returns (
+      address feed,
+      uint48 heartbeat,
+      bool isStable,
+      uint16 depegMinBps,
+      uint16 depegMaxBps,
+      bool enabled
+    )
+  {
+    AssetConfig memory config = _assetConfigs[asset];
+    return (
+      config.feed,
+      config.heartbeat,
+      config.isStable,
+      config.depegMinBps,
+      config.depegMaxBps,
+      config.enabled
+    );
+  }
+
   function validateExecution(address asset) external view override {
     if (executionPaused) revert RiskManager__ExecutionPaused();
 

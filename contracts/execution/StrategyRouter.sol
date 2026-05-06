@@ -59,16 +59,16 @@ contract StrategyRouter is Initializable, AccessControlUpgradeable, UUPSUpgradea
     _grantRole(ADAPTER_MANAGER_ROLE, adminTimelock);
   }
 
-  function setAdapterAllowed(address adapter, bool allowed) external onlyRole(ADAPTER_MANAGER_ROLE) {
+  function setAdapterAllowed(address adapter, bool isAllow) external onlyRole(ADAPTER_MANAGER_ROLE) {
     if (adapter == address(0)) revert CommonErrors.ZeroAddress();
 
-    if (allowed) {
+    if (isAllow) {
       _allowedAdapters.add(adapter);
     } else {
       _allowedAdapters.remove(adapter);
     }
 
-    emit AdapterAllowedSet(adapter, allowed);
+    emit AdapterAllowedSet(adapter, isAllow);
   }
 
   function isAdapterAllowed(address adapter) public view returns (bool) {
