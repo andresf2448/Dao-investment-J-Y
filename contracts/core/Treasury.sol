@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.33;
+pragma solidity 0.8.30;
 
 // =============================================================
 //                           IMPORTS
@@ -49,6 +49,9 @@ contract Treasury is ReentrancyGuardTransient, AccessControl {
   /// @notice Emitted when treasury transfers native token out.
   event NativeWithdrawn(address indexed to, uint256 amount);
 
+  /// @notice Emitted when protocol core is updated.
+  event ProtocolCoreSet(address protocolCore);
+
   /// @notice Emitted when a generic external call is executed from treasury context.
   event ExternalCallExecuted(address indexed target, uint256 value, bytes data, bytes result);
 
@@ -57,9 +60,6 @@ contract Treasury is ReentrancyGuardTransient, AccessControl {
   //////////////////////////////////////////////////////////////*/
   /// @notice Thrown when native withdrawal amount exceeds treasury balance.
   error Treasury__InsufficientNativeBalance();
-
-  /// @notice Thrown when a low-level external call fails.
-  error Treasury__CallFailed();
 
   /// @notice Thrown when token classification does not match requested withdrawal path.
   error Treasury__InvalidToken();
@@ -96,7 +96,9 @@ contract Treasury is ReentrancyGuardTransient, AccessControl {
   /// @notice Sets protocol core dependency used for genesis token validation.
   /// @param protocolcore_ Protocol core contract address.
   function setProtocolCore(address protocolcore_) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    if (protocolcore_ == address(0)) revert CommonErrors.ZeroAddress();
     protocolCore = protocolcore_;
+    emit ProtocolCoreSet(protocolcore_);
   }
 
   /// @notice Withdraws DAO-supported ERC20 assets.
@@ -105,8 +107,8 @@ contract Treasury is ReentrancyGuardTransient, AccessControl {
   /// @param amount Amount to transfer.
   function withdrawDaoERC20(address token, address to, uint256 amount)
     external
-    onlyRole(DEFAULT_ADMIN_ROLE)
     nonReentrant
+    onlyRole(DEFAULT_ADMIN_ROLE)
   {
     if (!IProtocolCore(protocolCore).hasGenesisToken(token)) {
       revert Treasury__InvalidToken();
@@ -129,8 +131,8 @@ contract Treasury is ReentrancyGuardTransient, AccessControl {
   /// @param amount Amount to transfer.
   function withdrawNotAssetDaoERC20(address token, address to, uint256 amount)
     external
-    onlyRole(SWEEP_NOT_ASSET_DAO_ROLE)
     nonReentrant
+    onlyRole(SWEEP_NOT_ASSET_DAO_ROLE)
   {
     if (IProtocolCore(protocolCore).hasGenesisToken(token)) {
       revert Treasury__InvalidToken();
@@ -150,7 +152,11 @@ contract Treasury is ReentrancyGuardTransient, AccessControl {
   /// @notice Withdraws native token balance.
   /// @param to Receiver of native token.
   /// @param amount Amount to withdraw.
-  function withdrawDaoNative(address payable to, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
+  function withdrawDaoNative(address payable to, uint256 amount)
+    external
+    nonReentrant
+    onlyRole(DEFAULT_ADMIN_ROLE)
+  {
     if (to == address(0)) revert CommonErrors.ZeroAddress();
     if (amount == 0) revert CommonErrors.ZeroAmount();
     if (address(this).balance < amount) {

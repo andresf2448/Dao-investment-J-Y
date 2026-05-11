@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.33;
+pragma solidity 0.8.30;
 
 // =============================================================
 //                           IMPORTS
@@ -13,6 +13,7 @@ import {IRiskManager} from "../interfaces/execution/IRiskManager.sol";
 import {IStrategyRouter} from "../interfaces/execution/IStrategyRouter.sol";
 import {IVaultRegistry} from "../interfaces/vaults/IVaultRegistry.sol";
 import {CommonErrors} from "../libraries/errors/CommonErrors.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 // =============================================================
 //                          CONTRACTS
@@ -28,6 +29,7 @@ contract StrategyRouter is Initializable, AccessControlUpgradeable, UUPSUpgradea
   //////////////////////////////////////////////////////////////*/
   
   using EnumerableSet for EnumerableSet.AddressSet;
+  using Address for address payable;
 
   /*//////////////////////////////////////////////////////////////
                               STATE VARIABLES
@@ -79,6 +81,9 @@ contract StrategyRouter is Initializable, AccessControlUpgradeable, UUPSUpgradea
   /// @notice Thrown when adapter/amount arrays are invalid or duplicated.
   error StrategyRouter__InvalidAllocation();
 
+  /// @notice Thrown when contract native balance is insufficient for withdrawal.
+  error StrategyRouter__InsufficientNativeBalance();
+
   /*//////////////////////////////////////////////////////////////
                               FUNCTIONS
   //////////////////////////////////////////////////////////////*/
@@ -89,6 +94,17 @@ contract StrategyRouter is Initializable, AccessControlUpgradeable, UUPSUpgradea
   /// @dev Locks implementation contract by disabling initializer calls.
   constructor() {
     _disableInitializers();
+  }
+
+  /// @notice Withdraws native token balance from the contract.
+  /// @param to Recipient address.
+  /// @param amount Amount of native token to withdraw.
+  function withdrawNative(address payable to, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    if (to == address(0)) revert CommonErrors.ZeroAddress();
+    if (amount == 0) revert CommonErrors.ZeroAmount();
+    if (address(this).balance < amount) revert StrategyRouter__InsufficientNativeBalance();
+
+    to.sendValue(amount);
   }
 
   // ==========================================================
@@ -178,19 +194,34 @@ contract StrategyRouter is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
     _validateVaultAndRisk(vault, asset);
 
+    bool[] memory validAdapters = new bool[](length);
+
     for (uint256 i = 0; i < length; i++) {
       address adapter = adapters[i];
 
-      _validateAdapter(adapter);
+      if (adapter == address(0) || !_allowedAdapters.contains(adapter)) {
+        validAdapters[i] = false;
+        continue;
+      }
 
+      bool isDuplicate = false;
       for (uint256 j = 0; j < i; j++) {
         if (adapters[j] == adapter) {
-          revert StrategyRouter__InvalidAllocation();
+          isDuplicate = true;
+          break;
         }
+      }
+
+      if (isDuplicate) {
+        validAdapters[i] = false;
+      } else {
+        validAdapters[i] = true;
       }
     }
 
     for (uint256 i = 0; i < length; i++) {
+      if (!validAdapters[i]) continue;
+
       uint256 amount = amountsToInvest[i];
 
       if (amount == 0) continue;
@@ -223,7 +254,7 @@ contract StrategyRouter is Initializable, AccessControlUpgradeable, UUPSUpgradea
     for (uint256 i = 0; i < length; i++) {
       address adapter = adapters[i];
 
-      _validateAdapter(adapter);
+      if (adapter == address(0) || !_allowedAdapters.contains(adapter)) continue;
 
       uint256 amount = amountsToDivest[i];
 

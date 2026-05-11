@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.33;
+pragma solidity 0.8.30;
 
 // =============================================================
 //                           IMPORTS
@@ -32,11 +32,11 @@ contract DaoGovernor is
                               STATE VARIABLES
   //////////////////////////////////////////////////////////////*/
   /// @notice Minimum proposal threshold in voting power units.
-  uint256 minProposalThreshold;
+  uint256 public immutable minProposalThreshold;
   /// @notice Voting delay in blocks before proposal becomes active.
-  uint48 minVotingDelay;
+  uint48 public immutable minVotingDelay;
   /// @notice Voting period in blocks.
-  uint32 minVotingPeriod;
+  uint32 public immutable minVotingPeriod;
 
   /*//////////////////////////////////////////////////////////////
                               FUNCTIONS

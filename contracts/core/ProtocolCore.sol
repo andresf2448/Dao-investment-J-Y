@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.33;
+pragma solidity 0.8.30;
 
 // =============================================================
 //                           IMPORTS
@@ -10,6 +10,7 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {CommonErrors} from "../libraries/errors/CommonErrors.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 // =============================================================
 //                          CONTRACTS
@@ -25,6 +26,7 @@ contract ProtocolCore is Initializable, AccessControlUpgradeable, UUPSUpgradeabl
   //////////////////////////////////////////////////////////////*/
   
   using EnumerableSet for EnumerableSet.AddressSet;
+  using Address for address payable;
 
   /*//////////////////////////////////////////////////////////////
                               STATE VARIABLES
@@ -61,7 +63,18 @@ contract ProtocolCore is Initializable, AccessControlUpgradeable, UUPSUpgradeabl
 
   /// @notice Emitted when vault deposit pause flag changes.
   event VaultDepositsPauseSet(bool paused);
-  
+
+  /// @notice Emitted when native ether is received by the contract.
+  event NativeReceived(address indexed sender, uint256 amount);
+
+  /// @notice Emitted when native ether is withdrawn by admin.
+  event NativeWithdrawn(address indexed to, uint256 amount);
+
+  /// @notice Emitted when supported genesis tokens are updated.
+  event SupportedGenesisTokensSet(address[] tokens);
+
+  /// @notice Thrown when contract native balance is insufficient for withdrawal.
+  error ProtocolCore__InsufficientNativeBalance();
 
   /*//////////////////////////////////////////////////////////////
                               FUNCTIONS
@@ -73,6 +86,18 @@ contract ProtocolCore is Initializable, AccessControlUpgradeable, UUPSUpgradeabl
   /// @dev Locks implementation contract by disabling initializer calls.
   constructor() {
     _disableInitializers();
+  }
+
+  /// @notice Withdraws native token balance from the contract.
+  /// @param to Recipient address.
+  /// @param amount Amount of native token to withdraw.
+  function withdrawNative(address payable to, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    if (to == address(0)) revert CommonErrors.ZeroAddress();
+    if (amount == 0) revert CommonErrors.ZeroAmount();
+    if (address(this).balance < amount) revert ProtocolCore__InsufficientNativeBalance();
+
+    to.sendValue(amount);
+    emit NativeWithdrawn(to, amount);
   }
 
   // ==========================================================
@@ -169,6 +194,7 @@ contract ProtocolCore is Initializable, AccessControlUpgradeable, UUPSUpgradeabl
   /// @param allowedGenesisTokens Tokens to include.
   function setSupportedGenesisTokens(address[] memory allowedGenesisTokens) public onlyRole(MANAGER_ROLE) {
     _setSupportedGenesisTokens(allowedGenesisTokens);
+    emit SupportedGenesisTokensSet(allowedGenesisTokens);
   }
 
   // ==========================================================
@@ -181,8 +207,9 @@ contract ProtocolCore is Initializable, AccessControlUpgradeable, UUPSUpgradeabl
     uint256 length = allowedGenesisTokens.length;
 
     for (uint256 i = 0; i < length; i++) {
-      if (allowedGenesisTokens[i] == address(0)) revert CommonErrors.ZeroAddress();
-      _supportedGenesisTokens.add(allowedGenesisTokens[i]);
+      if (allowedGenesisTokens[i] != address(0)) {
+        _supportedGenesisTokens.add(allowedGenesisTokens[i]);
+      }
     }
   }
 

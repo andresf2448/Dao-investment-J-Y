@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.33;
+pragma solidity 0.8.30;
 
 // =============================================================
 //                           IMPORTS
@@ -52,15 +52,6 @@ contract AaveV3Adapter is IStrategyAdapter {
   error AaveV3Adapter__InvalidAction();
 
   /*//////////////////////////////////////////////////////////////
-                              MODIFIERS
-  //////////////////////////////////////////////////////////////*/
-  /// @dev Restricts execution entrypoint to configured router.
-  modifier onlyRouter() {
-    if (msg.sender != router) revert AaveV3Adapter__NotRouter();
-    _;
-  }
-
-  /*//////////////////////////////////////////////////////////////
                               FUNCTIONS
   //////////////////////////////////////////////////////////////*/
   // ==========================================================
@@ -84,7 +75,8 @@ contract AaveV3Adapter is IStrategyAdapter {
   // ==========================================================
 
   /// @inheritdoc IStrategyAdapter
-  function execute(address vault, uint8 actionRaw, uint256 amount) external override onlyRouter {
+  function execute(address vault, uint8 actionRaw, uint256 amount) external override {
+    if (msg.sender != router) revert AaveV3Adapter__NotRouter();
     if (vault == address(0)) revert CommonErrors.ZeroAddress();
     if (amount == 0) revert CommonErrors.ZeroAmount();
 

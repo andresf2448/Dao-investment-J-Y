@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.33;
+pragma solidity 0.8.30;
 
 // =============================================================
 //                           IMPORTS
@@ -436,7 +436,11 @@ contract VaultImplementation is
       uint256 allocationBps = newAllocationBps[i];
 
       if (adapter == address(0) || allocationBps == 0 || allocationBps > MAX_BPS) {
-        revert VaultImplementation__InvalidStrategyAllocation();
+        continue;
+      }
+
+      if (_vaultActiveAdapters.contains(adapter)) {
+        continue;
       }
 
       totalBps += allocationBps;
@@ -445,9 +449,7 @@ contract VaultImplementation is
         revert VaultImplementation__InvalidPercentage();
       }
 
-      if (!_vaultActiveAdapters.add(adapter)) {
-        revert VaultImplementation__DuplicatedAdapter();
-      }
+      _vaultActiveAdapters.add(adapter);
 
       listAdapters[adapter] =
         AdapterAllocation({allocationBps: uint16(allocationBps), status: AdapterStatus.Active});
@@ -509,8 +511,12 @@ contract VaultImplementation is
   function _clearActiveAdapters() internal {
     uint256 length = _vaultActiveAdapters.length();
 
-    for (uint256 i = length; i > 0; i--) {
-      address adapter = _vaultActiveAdapters.at(i - 1);
+    if (length == 0) return;
+
+    address[] memory adapters = _vaultActiveAdapters.values();
+
+    for (uint256 i = 0; i < length; i++) {
+      address adapter = adapters[i];
 
       listAdapters[adapter].status = AdapterStatus.Retired;
       listAdapters[adapter].allocationBps = 0;

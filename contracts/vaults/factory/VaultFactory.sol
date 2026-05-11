@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.33;
+pragma solidity 0.8.30;
 
 // =============================================================
 //                           IMPORTS
@@ -81,9 +81,6 @@ contract VaultFactory is AccessControl {
 
   /// @notice Thrown when vault creation is globally paused in core.
   error VaultFactory__VaultCreationPaused();
-
-  /// @notice Thrown when a guardian-only action is called by a non-guardian.
-  error VaultFactory__NotGuardianCaller();
 
   /*//////////////////////////////////////////////////////////////
                               FUNCTIONS

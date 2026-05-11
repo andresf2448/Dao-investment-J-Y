@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.33;
+pragma solidity 0.8.30;
 
 // =============================================================
 //                           IMPORTS
@@ -10,6 +10,7 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import {IRiskManager} from "../interfaces/execution/IRiskManager.sol";
 import {CommonErrors} from "../libraries/errors/CommonErrors.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 // =============================================================
 //                          CONTRACTS
@@ -23,6 +24,7 @@ contract RiskManager is Initializable, AccessControlUpgradeable, UUPSUpgradeable
   /*//////////////////////////////////////////////////////////////
                               TYPE DECLARATIONS
   //////////////////////////////////////////////////////////////*/
+  using Address for address payable;
   
   /// @notice Price validation configuration per asset.
   struct AssetConfig {
@@ -54,6 +56,9 @@ contract RiskManager is Initializable, AccessControlUpgradeable, UUPSUpgradeable
 
   /// @dev Price target for stable assets normalized to 18 decimals.
   uint256 internal constant TARGET_STABLE_PRICE = 1e18;
+
+  /// @dev Target decimals for price normalization.
+  uint8 internal constant TARGET_DECIMALS = 18;
 
   /// @dev Asset configuration storage keyed by asset address.
   mapping(address asset => AssetConfig config) private _assetConfigs;
@@ -105,6 +110,9 @@ contract RiskManager is Initializable, AccessControlUpgradeable, UUPSUpgradeable
   /// @notice Thrown when stable asset price goes outside configured depeg bounds.
   error RiskManager__DepegDetected();
 
+  /// @notice Thrown when contract native balance is insufficient for withdrawal.
+  error RiskManager__InsufficientNativeBalance();
+
   /*//////////////////////////////////////////////////////////////
                               FUNCTIONS
   //////////////////////////////////////////////////////////////*/
@@ -115,6 +123,17 @@ contract RiskManager is Initializable, AccessControlUpgradeable, UUPSUpgradeable
   /// @dev Locks implementation contract by disabling initializer calls.
   constructor() {
     _disableInitializers();
+  }
+
+  /// @notice Withdraws native token balance from the contract.
+  /// @param to Recipient address.
+  /// @param amount Amount of native token to withdraw.
+  function withdrawNative(address payable to, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    if (to == address(0)) revert CommonErrors.ZeroAddress();
+    if (amount == 0) revert CommonErrors.ZeroAmount();
+    if (address(this).balance < amount) revert RiskManager__InsufficientNativeBalance();
+
+    to.sendValue(amount);
   }
 
   // ==========================================================
@@ -313,12 +332,12 @@ contract RiskManager is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     // forge-lint: disable-next-line(unsafe-typecast)
     uint256 unsignedAnswer = uint256(answer);
 
-    if (decimals == 18) {
+    if (decimals == TARGET_DECIMALS) {
       normalizedPrice = unsignedAnswer;
-    } else if (decimals < 18) {
-      normalizedPrice = unsignedAnswer * (10 ** (18 - decimals));
+    } else if (decimals < TARGET_DECIMALS) {
+      normalizedPrice = unsignedAnswer * (10 ** (TARGET_DECIMALS - decimals));
     } else {
-      normalizedPrice = unsignedAnswer / (10 ** (decimals - 18));
+      normalizedPrice = unsignedAnswer / (10 ** (decimals - TARGET_DECIMALS));
     }
 
     if (normalizedPrice == 0) revert RiskManager__InvalidPrice();

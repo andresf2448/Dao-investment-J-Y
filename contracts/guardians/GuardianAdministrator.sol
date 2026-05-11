@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.33;
+pragma solidity 0.8.30;
 
 // =============================================================
 //                           IMPORTS
@@ -10,6 +10,7 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {IGuardianBondEscrow} from "../interfaces/guardians/IGuardianBondEscrow.sol";
 import {CommonErrors} from "../libraries/errors/CommonErrors.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 
 // =============================================================
 //                          CONTRACTS
@@ -18,7 +19,7 @@ import {CommonErrors} from "../libraries/errors/CommonErrors.sol";
 /// @title GuardianAdministrator
 /// @notice Manages guardian onboarding, approval, resignation, and ban lifecycle.
 /// @dev Guardian approval is delegated to governance via proposal + timelock execution.
-contract GuardianAdministrator {
+contract GuardianAdministrator is ReentrancyGuardTransient{
   using EnumerableSet for EnumerableSet.AddressSet;
   using Strings for address;
   using Strings for uint256;
@@ -68,6 +69,12 @@ contract GuardianAdministrator {
 
   /// @dev Set of currently active guardians.
   EnumerableSet.AddressSet private activeGuardians;
+
+  /*//////////////////////////////////////////////////////////////
+                                  EVENTS
+  //////////////////////////////////////////////////////////////*/
+  /// @notice Emitted when bond escrow is updated.
+  event BondEscrowSet(IGuardianBondEscrow bondEscrow);
 
   /*//////////////////////////////////////////////////////////////
                                   EVENTS
@@ -162,6 +169,7 @@ contract GuardianAdministrator {
       revert CommonErrors.ZeroAddress();
     }
     bondEscrow = bondEscrow_;
+    emit BondEscrowSet(bondEscrow_);
   }
 
   /// @notice Delegates governance voting power held by this contract to itself.
@@ -177,7 +185,7 @@ contract GuardianAdministrator {
   }
 
   /// @notice Applies caller as guardian, locks bond, and opens approval proposal.
-  function applyGuardian() external {
+  function applyGuardian() external nonReentrant {
     if (address(bondEscrow) == address(0)) {
       revert CommonErrors.ZeroAddress();
     }
@@ -234,7 +242,7 @@ contract GuardianAdministrator {
 
   /// @notice Resolves rejected/canceled/expired applications and refunds stake.
   /// @param guardian Guardian applicant address.
-  function resolveRejectedApplication(address guardian) external {
+  function resolveRejectedApplication(address guardian) external nonReentrant {
     GuardianDetail storage guardianDetail = guardians[guardian];
 
     if (guardianDetail.status != Status.Pending) {
