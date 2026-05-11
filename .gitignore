@@ -21,3 +21,6 @@ contracts-sdk/
 
 node_modules/
 tracking_test.md
+
+coverage
+lcov.info

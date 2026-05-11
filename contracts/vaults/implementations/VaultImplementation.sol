@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.33;
 
+// =============================================================
+//                           IMPORTS
+// =============================================================
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
@@ -10,13 +13,19 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-
 import {IProtocolCore} from "../../interfaces/core/IProtocolCore.sol";
 import {IStrategyRouter} from "../../interfaces/execution/IStrategyRouter.sol";
 import {IVaultStrategyExecutor} from "../../interfaces/vaults/IVaultStrategyExecutor.sol";
 import {IStrategyAdapter} from "../../interfaces/adapters/IStrategyAdapter.sol";
 import {CommonErrors} from "../../libraries/errors/CommonErrors.sol";
 
+// =============================================================
+//                          CONTRACTS
+// =============================================================
+
+/// @title VaultImplementation
+/// @notice ERC4626 vault with guardian-managed strategy allocation across adapters.
+/// @dev Uses router-mediated execution and keeps adapter allocation state per vault clone.
 contract VaultImplementation is
   Initializable,
   ERC20Upgradeable,
@@ -26,36 +35,75 @@ contract VaultImplementation is
   ReentrancyGuardTransient,
   IVaultStrategyExecutor
 {
+
+  /*//////////////////////////////////////////////////////////////
+                              TYPE DECLARATIONS
+  //////////////////////////////////////////////////////////////*/
   using SafeERC20 for IERC20;
   using EnumerableSet for EnumerableSet.AddressSet;
 
+  /*//////////////////////////////////////////////////////////////
+                              STATE VARIABLES
+  //////////////////////////////////////////////////////////////*/
+  /// @notice 100% allocation expressed in basis points.
   uint16 public constant MAX_BPS = 10_000;
 
+  /// @notice Action code used for investing through adapters.
   uint8 public constant INVEST_ACTION = 0;
+
+  /// @notice Action code used for divesting through adapters.
   uint8 public constant DIVEST_ACTION = 1;
 
+  /// @notice Role assigned to guardian strategy operator.
   bytes32 public constant GUARDIAN_ROLE = keccak256("GUARDIAN_ROLE");
+
+  /// @notice Role assigned to router and active adapters for execution callbacks.
   bytes32 public constant STRATEGY_EXECUTOR_ROLE = keccak256("STRATEGY_EXECUTOR_ROLE");
 
+  /*//////////////////////////////////////////////////////////////
+                              TYPE DECLARATIONS
+  //////////////////////////////////////////////////////////////*/
+  /// @notice Lifecycle status for an adapter in this vault.
   enum AdapterStatus {
     None,
     Active,
     Retired
   }
 
+  /// @notice Allocation metadata tracked for each adapter.
   struct AdapterAllocation {
+    /// @notice Allocation in basis points for active strategies.
     uint16 allocationBps;
+    /// @notice Adapter lifecycle state.
     AdapterStatus status;
   }
 
+  /*//////////////////////////////////////////////////////////////
+                              STATE VARIABLES
+  //////////////////////////////////////////////////////////////*/
+  
+  /// @notice Guardian assigned to this vault.
   address public guardian;
+
+  /// @notice Factory that deployed and initialized this clone.
   address public factory;
+
+  /// @notice Strategy router used for adapter execution.
   address public router;
+
+  /// @notice Protocol core used for global pause checks.
   address public core;
 
+  /// @dev Set of currently active adapters for this vault.
   EnumerableSet.AddressSet private _vaultActiveAdapters;
+
+  /// @notice Adapter allocation state indexed by adapter address.
   mapping(address adapter => AdapterAllocation) public listAdapters;
 
+  /*//////////////////////////////////////////////////////////////
+                                  EVENTS
+  //////////////////////////////////////////////////////////////*/
+  /// @notice Emitted when vault clone initialization completes.
   event VaultInitialized(
     address indexed asset,
     address indexed guardian,
@@ -65,26 +113,67 @@ contract VaultImplementation is
     address core
   );
 
+  /// @notice Emitted when router dependency changes.
   event RouterUpdated(address indexed oldRouter, address indexed newRouter);
+
+  /// @notice Emitted when core dependency changes.
   event CoreUpdated(address indexed oldCore, address indexed newCore);
 
+  /// @notice Emitted when guardian submits a new allocation strategy.
   event StrategyExecutionRequest(address indexed guardian, address[] adapters, uint256[] allocationBps);
 
+  /// @notice Emitted after a router-authorized external call is executed.
   event RouterCallExecuted(address indexed target, uint256 value, bytes data, bytes result);
 
+  /// @notice Emitted when router updates token approval for an external spender.
   event RouterTokenApprovalSet(address indexed token, address indexed spender, uint256 amount);
 
+  /*//////////////////////////////////////////////////////////////
+                                  ERRORS
+  //////////////////////////////////////////////////////////////*/
+  /// @notice Thrown when initializer caller is not the declared factory.
   error VaultImplementation__NotFactory();
+
+  /// @notice Thrown when deposits are globally paused in protocol core.
   error VaultImplementation__DepositsPaused();
+
+  /// @notice Thrown when router-proxied external call fails without revert data.
   error VaultImplementation__ExternalCallFailed();
+
+  /// @notice Thrown when strategy adapters/allocation arrays are malformed.
   error VaultImplementation__InvalidStrategyAllocation();
+
+  /// @notice Thrown when an adapter appears more than once in strategy set.
   error VaultImplementation__DuplicatedAdapter();
+
+  /// @notice Thrown when accumulated allocation exceeds 100%.
   error VaultImplementation__InvalidPercentage();
 
+  /*//////////////////////////////////////////////////////////////
+                              FUNCTIONS
+  //////////////////////////////////////////////////////////////*/
+  // ==========================================================
+  //                      CONSTRUCTOR
+  // ==========================================================
+
+  /// @dev Locks implementation contract by disabling initializer calls.
   constructor() {
     _disableInitializers();
   }
 
+  // ==========================================================
+  //                          EXTERNAL
+  // ==========================================================
+
+  /// @notice Initializes clone state and sets roles/dependencies.
+  /// @param asset_ Vault underlying asset.
+  /// @param name_ ERC20 name for vault shares.
+  /// @param symbol_ ERC20 symbol for vault shares.
+  /// @param guardian_ Guardian controlling strategy requests.
+  /// @param adminTimelock Timelock that receives admin privileges.
+  /// @param factory_ Factory address expected as initializer caller.
+  /// @param router_ Strategy router contract.
+  /// @param core_ Protocol core contract for pause checks.
   function initialize(
     address asset_,
     string memory name_,
@@ -121,6 +210,8 @@ contract VaultImplementation is
     emit VaultInitialized(asset_, guardian_, adminTimelock, factory_, router_, core_);
   }
 
+  /// @notice Updates strategy router and rotates executor role.
+  /// @param newRouter New router contract.
   function setRouter(address newRouter) external onlyRole(DEFAULT_ADMIN_ROLE) {
     if (newRouter == address(0)) revert CommonErrors.ZeroAddress();
 
@@ -133,6 +224,8 @@ contract VaultImplementation is
     emit RouterUpdated(oldRouter, newRouter);
   }
 
+  /// @notice Updates core dependency used for protocol-level pause flags.
+  /// @param newCore New protocol core contract.
   function setCore(address newCore) external onlyRole(DEFAULT_ADMIN_ROLE) {
     if (newCore == address(0)) revert CommonErrors.ZeroAddress();
 
@@ -142,14 +235,22 @@ contract VaultImplementation is
     emit CoreUpdated(oldCore, newCore);
   }
 
+  /// @notice Pauses user operations guarded by `whenNotPaused`.
   function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
     _pause();
   }
 
+  /// @notice Unpauses user operations guarded by `whenNotPaused`.
   function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
     _unpause();
   }
 
+  // ==========================================================
+  //                           PUBLIC
+  // ==========================================================
+
+  /// @inheritdoc ERC4626Upgradeable
+  /// @dev Reverts when protocol-wide vault deposits are paused in core.
   function deposit(uint256 assets, address receiver)
     public
     override
@@ -164,6 +265,8 @@ contract VaultImplementation is
     shares = super.deposit(assets, receiver);
   }
 
+  /// @inheritdoc ERC4626Upgradeable
+  /// @dev Reverts when protocol-wide vault deposits are paused in core.
   function mint(uint256 shares, address receiver)
     public
     override
@@ -178,6 +281,8 @@ contract VaultImplementation is
     assets = super.mint(shares, receiver);
   }
 
+  /// @inheritdoc ERC4626Upgradeable
+  /// @dev If idle liquidity is insufficient, divests from strategies before withdrawing and then rebalances.
   function withdraw(uint256 assets, address receiver, address owner)
     public
     override
@@ -197,6 +302,8 @@ contract VaultImplementation is
     }
   }
 
+  /// @inheritdoc ERC4626Upgradeable
+  /// @dev If idle liquidity is insufficient, divests before redeeming and then rebalances.
   function redeem(uint256 shares, address receiver, address owner)
     public
     override
@@ -216,6 +323,8 @@ contract VaultImplementation is
     }
   }
 
+  /// @inheritdoc ERC4626Upgradeable
+  /// @dev Sums idle vault balance plus assets currently deployed in active adapters.
   function totalAssets() public view override returns (uint256 total) {
     total = IERC20(asset()).balanceOf(address(this));
 
@@ -227,6 +336,14 @@ contract VaultImplementation is
     }
   }
 
+  // ==========================================================
+  //                          EXTERNAL
+  // ==========================================================
+
+  /// @notice Sets a new target strategy allocation and executes requested action through router.
+  /// @param newAdapters Adapter list that defines target strategy set.
+  /// @param newAllocationBps Allocation list in basis points matching adapter indexes.
+  /// @param action Adapter action selector (0 = invest, 1 = divest).
   function executeStrategy(address[] calldata newAdapters, uint256[] calldata newAllocationBps, uint8 action)
     external
     onlyRole(GUARDIAN_ROLE)
@@ -235,10 +352,12 @@ contract VaultImplementation is
     _executeStrategy(newAdapters, newAllocationBps, action);
   }
 
+  /// @notice Fully divests current active strategies.
   function divestStrategy() external onlyRole(GUARDIAN_ROLE) whenNotPaused {
     _divestStrategy();
   }
 
+  /// @inheritdoc IVaultStrategyExecutor
   function executeFromRouter(address target, uint256 value, bytes calldata data)
     external
     override
@@ -258,6 +377,7 @@ contract VaultImplementation is
     return returndata;
   }
 
+  /// @inheritdoc IVaultStrategyExecutor
   function approveTokenFromRouter(address token, address spender, uint256 amount)
     external
     override
@@ -272,18 +392,34 @@ contract VaultImplementation is
     emit RouterTokenApprovalSet(token, spender, amount);
   }
 
+  /// @notice Returns active adapter list currently tracked by the vault.
+  /// @return Active adapter addresses.
   function getActiveAdapters() external view returns (address[] memory) {
     return _vaultActiveAdapters.values();
   }
 
+  // ==========================================================
+  //                           PUBLIC
+  // ==========================================================
+
+  /// @inheritdoc ERC4626Upgradeable
   function decimals() public view override(ERC20Upgradeable, ERC4626Upgradeable) returns (uint8) {
     return ERC20Upgradeable.decimals();
   }
 
+  /// @inheritdoc AccessControlUpgradeable
   function supportsInterface(bytes4 interfaceId) public view override(AccessControlUpgradeable) returns (bool) {
     return super.supportsInterface(interfaceId);
   }
 
+  // ==========================================================
+  //                          INTERNAL
+  // ==========================================================
+
+  /// @dev Validates strategy allocation, updates adapter registry, and executes router call.
+  /// @param newAdapters Adapter list to activate.
+  /// @param newAllocationBps Adapter allocation list in basis points.
+  /// @param action Router action to execute after allocation refresh.
   function _executeStrategy(address[] memory newAdapters, uint256[] memory newAllocationBps, uint8 action) internal {
     uint256 adaptersLength = newAdapters.length;
 
@@ -331,6 +467,7 @@ contract VaultImplementation is
     IStrategyRouter(router).executeMultiple(address(this), asset(), newAdapters, amountsToInvest, action);
   }
 
+  /// @dev Reinvests current idle assets according to active adapter allocation.
   function _rebalanceStrategies() internal {
     uint256 length = _vaultActiveAdapters.length();
 
@@ -352,6 +489,7 @@ contract VaultImplementation is
     IStrategyRouter(router).executeMultiple(address(this), asset(), adapters, amountsToInvest, INVEST_ACTION);
   }
 
+  /// @dev Requests full divest for all currently active adapters.
   function _divestStrategy() internal {
     uint256 length = _vaultActiveAdapters.length();
 
@@ -367,6 +505,7 @@ contract VaultImplementation is
     IStrategyRouter(router).divestMultiple(address(this), adapters, amountsToDivest);
   }
 
+  /// @dev Clears active adapter set and marks previous adapters as retired.
   function _clearActiveAdapters() internal {
     uint256 length = _vaultActiveAdapters.length();
 
@@ -380,6 +519,8 @@ contract VaultImplementation is
     }
   }
 
+  /// @dev Collects allocation bps for active adapters preserving set ordering.
+  /// @return allocations Basis-point allocations aligned with `_vaultActiveAdapters.values()`.
   function _getAllocationBps() internal view returns (uint256[] memory allocations) {
     uint256 length = _vaultActiveAdapters.length();
     allocations = new uint256[](length);
@@ -390,6 +531,8 @@ contract VaultImplementation is
     }
   }
 
+  /// @dev Bubbles revert data from external call or throws a generic vault external-call error.
+  /// @param returndata Raw revert payload from failed low-level call.
   function _revertWithReturnData(bytes memory returndata) internal pure {
     if (returndata.length == 0) {
       revert VaultImplementation__ExternalCallFailed();
