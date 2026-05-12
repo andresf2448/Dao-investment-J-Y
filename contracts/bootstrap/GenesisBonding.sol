@@ -64,6 +64,9 @@ contract GenesisBonding is AccessControl, ReentrancyGuardTransient {
   /// @notice Emitted when purchase tokens are updated.
   event PurchaseTokensSet(address[] tokens);
 
+  /// @notice Emitted when tokens are swept to treasury.
+  event Swept(address indexed token, uint256 amount);
+
   /*//////////////////////////////////////////////////////////////
                                   ERRORS
   //////////////////////////////////////////////////////////////*/

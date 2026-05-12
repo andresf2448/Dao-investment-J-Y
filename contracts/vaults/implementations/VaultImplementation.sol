@@ -143,9 +143,6 @@ contract VaultImplementation is
   /// @notice Thrown when strategy adapters/allocation arrays are malformed.
   error VaultImplementation__InvalidStrategyAllocation();
 
-  /// @notice Thrown when an adapter appears more than once in strategy set.
-  error VaultImplementation__DuplicatedAdapter();
-
   /// @notice Thrown when accumulated allocation exceeds 100%.
   error VaultImplementation__InvalidPercentage();
 
@@ -253,9 +250,9 @@ contract VaultImplementation is
   /// @dev Reverts when protocol-wide vault deposits are paused in core.
   function deposit(uint256 assets, address receiver)
     public
+    nonReentrant
     override
     whenNotPaused
-    nonReentrant
     returns (uint256 shares)
   {
     if (IProtocolCore(core).isVaultDepositsPaused()) {
@@ -269,9 +266,9 @@ contract VaultImplementation is
   /// @dev Reverts when protocol-wide vault deposits are paused in core.
   function mint(uint256 shares, address receiver)
     public
+    nonReentrant
     override
     whenNotPaused
-    nonReentrant
     returns (uint256 assets)
   {
     if (IProtocolCore(core).isVaultDepositsPaused()) {
@@ -285,9 +282,9 @@ contract VaultImplementation is
   /// @dev If idle liquidity is insufficient, divests from strategies before withdrawing and then rebalances.
   function withdraw(uint256 assets, address receiver, address owner)
     public
+    nonReentrant
     override
     whenNotPaused
-    nonReentrant
     returns (uint256 shares)
   {
     uint256 idleAssets = IERC20(asset()).balanceOf(address(this));
@@ -306,9 +303,9 @@ contract VaultImplementation is
   /// @dev If idle liquidity is insufficient, divests before redeeming and then rebalances.
   function redeem(uint256 shares, address receiver, address owner)
     public
+    nonReentrant
     override
     whenNotPaused
-    nonReentrant
     returns (uint256 assets)
   {
     uint256 idleAssets = IERC20(asset()).balanceOf(address(this));

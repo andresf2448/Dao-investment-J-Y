@@ -50,15 +50,6 @@ contract CompoundV3Adapter is IStrategyAdapter {
   error CompoundV3Adapter__InvalidAction();
 
   /*//////////////////////////////////////////////////////////////
-                              MODIFIERS
-  //////////////////////////////////////////////////////////////*/
-  /// @dev Restricts execution entrypoint to configured router.
-  modifier onlyRouter() {
-    if (msg.sender != router) revert CompoundV3Adapter__NotRouter();
-    _;
-  }
-
-  /*//////////////////////////////////////////////////////////////
                               FUNCTIONS
   //////////////////////////////////////////////////////////////*/
   // ==========================================================
@@ -82,7 +73,8 @@ contract CompoundV3Adapter is IStrategyAdapter {
   // ==========================================================
 
   /// @inheritdoc IStrategyAdapter
-  function execute(address vault, uint8 actionRaw, uint256 amount) external override onlyRouter {
+  function execute(address vault, uint8 actionRaw, uint256 amount) external override {
+    if (msg.sender != router) revert CompoundV3Adapter__NotRouter();
     if (vault == address(0)) revert CommonErrors.ZeroAddress();
     if (amount == 0) revert CommonErrors.ZeroAmount();
 

@@ -289,16 +289,6 @@ contract StrategyRouter is Initializable, AccessControlUpgradeable, UUPSUpgradea
     IRiskManager(riskManager).validateExecution(asset);
   }
 
-  /// @dev Ensures adapter is non-zero and currently allowlisted.
-  /// @param adapter Adapter to validate.
-  function _validateAdapter(address adapter) internal view {
-    if (adapter == address(0)) revert CommonErrors.ZeroAddress();
-
-    if (!_allowedAdapters.contains(adapter)) {
-      revert StrategyRouter__AdapterNotAllowed();
-    }
-  }
-
   /// @dev Restricts UUPS upgrades to default admin role.
   function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 }

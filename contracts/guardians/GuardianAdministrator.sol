@@ -294,7 +294,7 @@ contract GuardianAdministrator is ReentrancyGuardTransient{
 
   /// @notice Bans an active guardian and slashes their bonded stake to treasury.
   /// @param guardian Guardian address to ban.
-  function banGuardian(address guardian) external onlyTimelock {
+  function banGuardian(address guardian) external nonReentrant onlyTimelock {
     if (guardian == address(0)) {
       revert CommonErrors.ZeroAddress();
     }
